@@ -44,7 +44,7 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
 ### Installation
 1. **Clone the repository**
 ```bash
-git clone <repository_url>
+git clone [<repository_url>](https://github.com/binkiewka/discord-multi-ai-bot)
 cd discord-ai-bot
 ```
 
