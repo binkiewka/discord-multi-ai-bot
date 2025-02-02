@@ -186,7 +186,7 @@ discord-ai-bot/
 For issues and feature requests, please open an issue in the repository.
 
 ## License
-MIT License
+GPL-3.0 license
 
 ## Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.
