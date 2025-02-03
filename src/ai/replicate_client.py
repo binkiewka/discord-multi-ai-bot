@@ -33,7 +33,8 @@ class ReplicateClient:
                         "num_outputs": 1,
                         "aspect_ratio": "4:3",
                         "output_format": "png",
-                        "output_quality": 100
+                        "output_quality": 100,
+                        "negative_prompt": "bad quality, bad anatomy, bad hands, bad fingers, six fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, extra limbs, extra fingers, disfigured, bad proportions, gross proportions, blurry, duplicate, extra arms, extra legs, fused fingers, too many fingers, unclear eyes, poorly drawn eyes, imperfect eyes"
                     }
                 )
             )
