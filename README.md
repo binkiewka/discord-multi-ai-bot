@@ -1,6 +1,6 @@
 # Discord Multi-AI Bot
 
-A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, OpenAI GPT-4, and Google Gemini) with advanced context memory and role-based interactions.
+A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, OpenAI GPT-4, and Google Gemini) with advanced context memory, role-based interactions, and image generation capabilities.
 
 ## Features
 
@@ -9,9 +9,16 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - Anthropic Claude (claude-3-opus-20240229)
   - OpenAI GPT-4 (gpt-4-turbo-preview)
   - Google Gemini (gemini-pro)
+  - Replicate Flux (image generation)
 - **Seamless Model Switching** - Switch between AI models per server
 - **Context Memory** - Maintains conversation history using Redis
 - **Multi-User Support** - Multiple users can participate in the same conversation thread
+
+### Image Generation
+- **Direct Image Commands** - Generate images using the `!image` command without switching models
+- **High-Quality Output** - Optimized settings for detailed 1024x768 images
+- **Advanced Parameters** - Customized negative prompting and quality settings
+- **Safety Filters** - Built-in content safety checking
 
 ### Role-Based System
 - Predefined roles with unique personalities and behaviors
@@ -39,7 +46,11 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
 ### Prerequisites
 - Docker and Docker Compose
 - Discord Bot Token
-- AI Provider API Keys (Anthropic, OpenAI, Google AI)
+- AI Provider API Keys:
+  - Anthropic API Key
+  - OpenAI API Key
+  - Google AI API Key
+  - Replicate API Token (for image generation)
 
 ### Installation
 1. **Clone the repository**
@@ -55,6 +66,16 @@ cp .env_example .env
 
 # Edit .env file with your tokens and API keys
 nano .env  # or use any text editor
+```
+
+Required environment variables:
+```env
+DISCORD_TOKEN=your_discord_bot_token
+ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENAI_API_KEY=your_openai_api_key
+GOOGLE_API_KEY=your_google_api_key
+REPLICATE_API_TOKEN=your_replicate_api_token
+OWNER_ID=your_discord_user_id
 ```
 
 3. **Discord Bot Setup**
@@ -81,6 +102,7 @@ docker-compose up --build
   - Read Message History
   - Use External Emojis
   - Add Reactions
+  - Attach Files
   - Use Slash Commands
 - Copy and use the generated URL to invite the bot
 
@@ -90,9 +112,23 @@ docker-compose up --build
 - `!setchan` - Set the current channel for bot responses
 - `!setmodel <model>` - Switch AI model (claude/gpt4/gemini)
 - `!setrole <role>` - Change the bot's personality role
+- `!image <prompt>` - Generate an image from text prompt
 - `!listroles` - Display available roles
 - `!listmodels` - Show available AI models
 - `!status` - Display current configuration
+
+### Image Generation
+The bot supports direct image generation through the `!image` command:
+```bash
+!image a beautiful sunset over mountains, photorealistic, 4k
+```
+
+Image generation features:
+- High-quality 1024x768 output
+- Advanced negative prompting
+- Content safety filters
+- Multiple inference steps for better quality
+- Optimized guidance scaling
 
 ### Admin Commands
 - `!shutdown` - Shutdown the bot (owner only)
@@ -113,7 +149,8 @@ discord-ai-bot/
 │   ├── ai/
 │   │   ├── anthropic_client.py
 │   │   ├── openai_client.py
-│   │   └── google_client.py
+│   │   ├── google_client.py
+│   │   └── replicate_client.py
 │   ├── config/
 │   │   ├── roles.yaml
 │   │   └── config.py
@@ -136,6 +173,14 @@ discord-ai-bot/
 - Top P: 0.9
 - Response timeout: 60 seconds
 
+### Image Generation Configuration
+- Resolution: 1024x768 (4:3 aspect ratio)
+- Inference steps: 50
+- Guidance scale: 7.5
+- Scheduler: DPMSolverMultistep
+- Safety checker: Enabled
+- Negative prompting: Configured for quality output
+
 ### Redis Configuration
 - Context expiry: 2 hours
 - Max context messages: 30
@@ -146,6 +191,7 @@ discord-ai-bot/
 ### Rate Limiting
 - Built-in Discord API rate limiting
 - Provider-specific API rate limits apply
+- Image generation request limiting
 
 ### Access Control
 - Channel-specific responses
@@ -156,6 +202,7 @@ discord-ai-bot/
 - Temporary context storage in Redis
 - No permanent message storage
 - Automatic context cleanup
+- Secure image generation with content filtering
 
 ## Troubleshooting
 
@@ -174,6 +221,12 @@ discord-ai-bot/
    - Validate API keys
    - Check API service status
    - Review error logs
+
+4. **Image Generation Issues**
+   - Verify Replicate API token
+   - Check prompt length and content
+   - Ensure bot has file attachment permissions
+   - Monitor Replicate service status
 
 ### Logging
 - Error logs are printed to console

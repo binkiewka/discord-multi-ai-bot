@@ -7,7 +7,9 @@ from db.redis_client import RedisClient
 from ai.anthropic_client import AnthropicClient
 from ai.openai_client import OpenAIClient
 from ai.google_client import GoogleAIClient
+from ai.replicate_client import ReplicateClient
 from utils.helpers import send_chunked_message
+import io
 
 class AIBot(commands.Bot):
     def __init__(self, config: Config):
@@ -23,11 +25,14 @@ class AIBot(commands.Bot):
         self.redis_client = RedisClient(config.redis_host, config.redis_port)
         self.owner_id = int(config.owner_id)
         
+        # Initialize AI clients
         self.ai_clients = {
             "claude": AnthropicClient(config.anthropic_api_key),
             "gpt4": OpenAIClient(config.openai_api_key),
-            "gemini": GoogleAIClient(config.google_api_key)
+            "gemini": GoogleAIClient(config.google_api_key),
         }
+        # Keep image client separate for direct access
+        self.image_client = ReplicateClient(config.replicate_api_token)
 
         # Register commands
         self.add_commands()
@@ -64,6 +69,48 @@ class AIBot(commands.Bot):
             
             self.redis_client.set_server_model(str(ctx.guild.id), model)
             await ctx.send(f"AI model set to {model}")
+
+        @self.command(name='image')
+        async def generate_image(ctx, *, prompt: str):
+            """Generate an image from a text prompt using Replicate API"""
+            try:
+                async with ctx.typing():
+                    # First, acknowledge that we're processing the request
+                    status_message = await ctx.send("Generating image, please wait...")
+                    
+                    # Generate the image
+                    image_url = await self.image_client.generate_image(prompt)
+                    if not image_url:
+                        await status_message.edit(content="Failed to generate image. Please try again.")
+                        return
+
+                    # Download the image with a status update
+                    await status_message.edit(content="Image generated, downloading...")
+                    image_data = await self.image_client.download_image(image_url)
+                    
+                    if not image_data:
+                        await status_message.edit(
+                            content=f"Generated image but couldn't download it. You can view it here: {image_url}"
+                        )
+                        return
+
+                    # Create Discord file object
+                    file = discord.File(
+                        io.BytesIO(image_data), 
+                        filename="generated_image.png"
+                    )
+                    
+                    # Send the image with the original prompt and delete the status message
+                    await ctx.send(
+                        f"Generated image for prompt: '{prompt}'",
+                        file=file
+                    )
+                    await status_message.delete()
+                    
+            except Exception as e:
+                error_message = f"Error generating image: {str(e)}"
+                print(error_message)  # Log the error
+                await ctx.send(error_message)
 
         @self.command(name='setrole')
         async def set_role(ctx, role: str):
@@ -170,7 +217,7 @@ class AIBot(commands.Bot):
                         context,
                         message
                     ),
-                    timeout=60.0  # 60 second timeout
+                    timeout=60.0
                 )
 
                 # Save to context
@@ -204,8 +251,6 @@ class AIBot(commands.Bot):
 
     async def on_guild_join(self, guild):
         print(f"Joined new guild: {guild.name} (ID: {guild.id})")
-        # You could send a welcome message to the first available channel
-        # or implement other onboarding logic here
 
     async def on_message(self, message: discord.Message):
         # Process commands

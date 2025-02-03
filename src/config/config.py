@@ -14,6 +14,7 @@ class Config:
         self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.google_api_key = os.getenv('GOOGLE_API_KEY')
+        self.replicate_api_token = os.getenv('REPLICATE_API_TOKEN')
         self.redis_host = os.getenv('REDIS_HOST', 'localhost')
         self.redis_port = int(os.getenv('REDIS_PORT', 6379))
         self.owner_id = os.getenv('OWNER_ID')
@@ -25,6 +26,7 @@ class Config:
             self.anthropic_api_key,
             self.openai_api_key,
             self.google_api_key,
+            self.replicate_api_token,
             self.owner_id
         ]):
             raise ValueError("Missing required environment variables")
