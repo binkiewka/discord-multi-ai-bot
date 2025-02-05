@@ -75,23 +75,10 @@ class AIBot(commands.Bot):
             """Generate an image from a text prompt using Replicate API"""
             try:
                 async with ctx.typing():
-                    # First, acknowledge that we're processing the request
-                    status_message = await ctx.send("Generating image, please wait...")
-                    
                     # Generate the image
-                    image_url = await self.image_client.generate_image(prompt)
-                    if not image_url:
-                        await status_message.edit(content="Failed to generate image. Please try again.")
-                        return
-
-                    # Download the image with a status update
-                    await status_message.edit(content="Image generated, downloading...")
-                    image_data = await self.image_client.download_image(image_url)
-                    
+                    image_data = await self.image_client.generate_image(prompt)
                     if not image_data:
-                        await status_message.edit(
-                            content=f"Generated image but couldn't download it. You can view it here: {image_url}"
-                        )
+                        await ctx.send("Failed to generate image. Please try again.")
                         return
 
                     # Create Discord file object
@@ -100,17 +87,13 @@ class AIBot(commands.Bot):
                         filename="generated_image.png"
                     )
                     
-                    # Send the image with the original prompt and delete the status message
+                    # Send the image with the original prompt
                     await ctx.send(
                         f"Generated image for prompt: '{prompt}'",
                         file=file
                     )
-                    await status_message.delete()
-                    
             except Exception as e:
-                error_message = f"Error generating image: {str(e)}"
-                print(error_message)  # Log the error
-                await ctx.send(error_message)
+                await ctx.send(f"Error generating image: {str(e)}")
 
         @self.command(name='setrole')
         async def set_role(ctx, role: str):
