@@ -6,9 +6,9 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
 
 ### AI Integration
 - **Multiple AI Providers**
-  - Anthropic Claude (claude-3-opus-20240229)
-  - OpenAI GPT-4 (gpt-4-turbo-preview)
-  - Google Gemini (gemini-pro)
+  - Anthropic Claude
+  - OpenAI GPT
+  - Google Gemini
   - Replicate Flux (image generation)
 - **Seamless Model Switching** - Switch between AI models per server
 - **Context Memory** - Maintains conversation history using Redis
