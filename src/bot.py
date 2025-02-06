@@ -140,6 +140,33 @@ class AIBot(commands.Bot):
             )
             await ctx.send(status_message)
 
+        @self.command(name='debug')
+        async def debug_redis(ctx):
+            """Debug Redis data"""
+            if ctx.author.id != self.owner_id:
+                await ctx.send("Only the bot owner can use this command.")
+                return
+            
+            # Get all Redis keys and values
+            all_keys = self.redis_client.get_all_keys()
+            debug_info = ["Redis Debug Information:"]
+            for key in all_keys:
+                if "allowed_channel" in key:
+                    value = self.redis_client.redis.get(key)
+                    debug_info.append(f"{key}: {value}")
+            
+            await ctx.send("\n".join(debug_info))
+
+        @self.command(name='clearredis')
+        async def clear_redis(ctx):
+            """Clear all Redis data"""
+            if ctx.author.id != self.owner_id:
+                await ctx.send("Only the bot owner can use this command.")
+                return
+            
+            self.redis_client.flushall()
+            await ctx.send("Redis data cleared. You'll need to set up channels again.")
+
         @self.command(name='shutdown')
         async def shutdown(ctx):
             if ctx.author.id != self.owner_id:
@@ -178,7 +205,14 @@ class AIBot(commands.Bot):
                             message: str) -> Optional[str]:
         # Check if channel is allowed
         allowed_channel = self.redis_client.get_allowed_channel(server_id)
-        if not allowed_channel or allowed_channel != channel_id:
+        print(f"Server {server_id} - Message in channel {channel_id}, Allowed channel: {allowed_channel}")  # Debug log
+        
+        if not allowed_channel:
+            print(f"No allowed channel set for server {server_id}")  # Debug log
+            return None
+            
+        if allowed_channel != channel_id:
+            print(f"Channel {channel_id} is not allowed. Only {allowed_channel} is allowed.")  # Debug log
             return None
 
         channel = self.get_channel(int(channel_id))
@@ -249,6 +283,7 @@ class AIBot(commands.Bot):
 
         # Remove the mention from the message
         content = message.content.replace(f'<@{self.user.id}>', '').strip()
+
 
         response = await self.get_ai_response(
             str(message.guild.id),
