@@ -97,10 +97,7 @@ class AIBot(commands.Bot):
 
         @self.command(name='setrole')
         async def set_role(ctx, role: str):
-            if not await self.has_permissions(ctx):
-                await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
-                return
-
+            # No permission check - accessible to all users
             if role not in self.config.roles:
                 await ctx.send(f"Invalid role. Available roles: {', '.join(self.config.roles.keys())}")
                 return
@@ -283,7 +280,6 @@ class AIBot(commands.Bot):
 
         # Remove the mention from the message
         content = message.content.replace(f'<@{self.user.id}>', '').strip()
-
 
         response = await self.get_ai_response(
             str(message.guild.id),
