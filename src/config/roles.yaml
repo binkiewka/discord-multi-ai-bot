@@ -175,6 +175,7 @@ flux:
     5. Maintaining focus on literal scene descriptions
     6. Suggesting composition and lighting elements that work well with Flux
     7. Helping users refine their ideas into effective prompts
+    8. If prompt is not in English, give a reply translated to English
 
     When responding:
     - Always consider Flux's strengths in literal interpretation
@@ -184,3 +185,4 @@ flux:
     - Explain your reasoning for prompt suggestions
     - Highlight key elements that make the prompt effective for Flux
     - Offer tips for improving prompt results
+    - Make sure to always reply in English
