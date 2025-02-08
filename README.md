@@ -6,40 +6,49 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
 
 ### AI Integration
 - **Multiple AI Providers**
-  - Anthropic Claude
-  - OpenAI GPT
-  - Google Gemini
-  - Replicate Flux (image generation)
-- **Seamless Model Switching** - Switch between AI models per server
+  - Anthropic Claude (claude-3-opus-20240229)
+  - OpenAI GPT-4 (gpt-4-turbo-preview)
+  - Google Gemini (gemini-pro)
+- **Image Generation**
+  - Replicate API integration for AI image generation
+  - Support for detailed image prompts with Flux AI model
+  - Automatic image delivery in Discord
+- **Seamless Model Switching** - Switch between AI models per server (admin only)
 - **Context Memory** - Maintains conversation history using Redis
 - **Multi-User Support** - Multiple users can participate in the same conversation thread
 
-### Image Generation
-- **Direct Image Commands** - Generate images using the `!image` command without switching models
-- **High-Quality Output** - Optimized settings for detailed 1024x768 images
-- **Advanced Parameters** - Customized negative prompting and quality settings
-- **Safety Filters** - Built-in content safety checking
-
 ### Role-Based System
+- Public access to role switching - Any user can change the bot's personality
 - Predefined roles with unique personalities and behaviors
 - Easy to add new roles via YAML configuration
-- Includes roles like:
-  - Default Assistant
-  - Concise Mode
-  - Creative Assistant
-  - Academic Expert
-  - Comedian
-  - Poet
-  - Rapper
-  - Prompt Generator
-  - Dream Interpreter
-  - Domain Name Generator
-  - DIY Expert
+
+Available Roles:
+- **Serious Roles**
+  - Default Assistant - A helpful AI assistant
+  - Concise Mode - Brief and direct responses
+  - Creative Assistant - Imaginative and innovative
+  - Academic Expert - Formal and scholarly
+  - DIY Expert - Practical project guidance
+
+- **Fun and Creative Roles**
+  - CL4P-TP 'Badjoke' Unit 🤖 - A pun-loving robot stuck in dad joke mode
+  - Nutty McNutface 🐿️ - A conspiracy theorist squirrel
+  - SpongeBot SquarePants 🧽 - Underwater optimist with Bikini Bottom logic
+  - The Chaos Jester 🤡 - Mischievous meme-loving absurdist
+  - Reality Fracture v3.14 🔮 - Multi-dimensional metaphysical entity
+
+- **Specialized Roles**
+  - Flux AI - Expert image prompt engineer
+  - Poet - Emotional verse creator
+  - Rapper - Lyrical wordsmith
+  - Dream Interpreter - Analytical dream analyst
+  - Domain Generator - Creative naming expert
 
 ### Server Management
 - **Channel-Specific Responses** - Bot only responds in designated channels
 - **Per-Server Configuration** - Each server maintains its own settings
-- **Admin Controls** - Server administrators can manage bot settings
+- **Admin Controls** - Server administrators can manage critical bot settings
+- **Debug Tools** - Advanced debugging capabilities for bot owners
 
 ## Setup
 
@@ -50,13 +59,13 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - Anthropic API Key
   - OpenAI API Key
   - Google AI API Key
-  - Replicate API Token (for image generation)
+  - Replicate API Token
 
 ### Installation
 1. **Clone the repository**
 ```bash
-git clone https://github.com/binkiewka/discord-multi-ai-bot
-cd discord-ai-bot
+git clone https://github.com/yourusername/discord-multi-ai-bot
+cd discord-multi-ai-bot
 ```
 
 2. **Configure Environment**
@@ -70,12 +79,12 @@ nano .env  # or use any text editor
 
 Required environment variables:
 ```env
-DISCORD_TOKEN=your_discord_bot_token
-ANTHROPIC_API_KEY=your_anthropic_api_key
-OPENAI_API_KEY=your_openai_api_key
-GOOGLE_API_KEY=your_google_api_key
-REPLICATE_API_TOKEN=your_replicate_api_token
-OWNER_ID=your_discord_user_id
+DISCORD_TOKEN=your_discord_token
+ANTHROPIC_API_KEY=your_anthropic_key
+OPENAI_API_KEY=your_openai_key
+GOOGLE_API_KEY=your_google_key
+REPLICATE_API_TOKEN=your_replicate_token
+OWNER_ID=your_discord_id
 ```
 
 3. **Discord Bot Setup**
@@ -94,46 +103,33 @@ docker-compose up --build
 ```
 
 5. **Invite Bot to Server**
-- In your Discord Application's OAuth2 URL Generator
-- Select scopes: `bot` and `applications.commands`
-- Bot Permissions: 
+- Generate OAuth2 URL with required permissions:
   - Read Messages/View Channels
   - Send Messages
   - Read Message History
   - Use External Emojis
   - Add Reactions
-  - Attach Files
-  - Use Slash Commands
-- Copy and use the generated URL to invite the bot
+  - Attach Files (for image generation)
 
 ## Usage
 
-### Basic Commands
-- `!setchan` - Set the current channel for bot responses
-- `!setmodel <model>` - Switch AI model (claude/gpt4/gemini)
-- `!setrole <role>` - Change the bot's personality role
-- `!image <prompt>` - Generate an image from text prompt
-- `!listroles` - Display available roles
+### Public Commands
+- `!setrole <role>` - Change the bot's personality (available to all users)
+- `!listroles` - Display available personality roles
 - `!listmodels` - Show available AI models
-- `!status` - Display current configuration
-
-### Image Generation
-The bot supports direct image generation through the `!image` command:
-```bash
-!image a beautiful sunset over mountains, photorealistic, 4k
-```
-
-Image generation features:
-- High-quality 1024x768 output
-- Advanced negative prompting
-- Content safety filters
-- Multiple inference steps for better quality
-- Optimized guidance scaling
+- `!image <prompt>` - Generate an image from a text prompt
 
 ### Admin Commands
-- `!shutdown` - Shutdown the bot (owner only)
-- `!listservers` - List all servers the bot is in (owner only)
-- `!leaveserver <server_id>` - Leave a specific server (owner only)
+- `!setchan` - Set the current channel for bot responses
+- `!setmodel <model>` - Switch AI model (claude/gpt4/gemini)
+- `!status` - Display current configuration
+
+### Owner Commands
+- `!debug` - View Redis debug information
+- `!clearredis` - Clear all Redis data
+- `!shutdown` - Shutdown the bot
+- `!listservers` - List all servers the bot is in
+- `!leaveserver <server_id>` - Leave a specific server
 
 ### Interaction
 - The bot responds to mentions (@BotName)
@@ -172,37 +168,40 @@ discord-ai-bot/
 - Temperature: 0.7
 - Top P: 0.9
 - Response timeout: 60 seconds
-
-### Image Generation Configuration
-- Resolution: 1024x768 (4:3 aspect ratio)
-- Inference steps: 50
-- Guidance scale: 7.5
-- Scheduler: DPMSolverMultistep
-- Safety checker: Enabled
-- Negative prompting: Configured for quality output
+- Image generation via Replicate API
 
 ### Redis Configuration
 - Context expiry: 2 hours
 - Max context messages: 30
 - Per-server settings storage
+- Debug tools for data inspection
 
 ## Security
+
+### Permission Levels
+- **Public Access**
+  - Role selection
+  - Image generation
+  - Basic informational commands
+- **Admin Access**
+  - Model selection
+  - Channel configuration
+  - Status monitoring
+- **Owner Access**
+  - Debug tools
+  - Redis management
+  - Server management
 
 ### Rate Limiting
 - Built-in Discord API rate limiting
 - Provider-specific API rate limits apply
-- Image generation request limiting
-
-### Access Control
-- Channel-specific responses
-- Admin-only configuration commands
-- Owner-only system commands
+- Image generation throttling
 
 ### Data Handling
 - Temporary context storage in Redis
 - No permanent message storage
 - Automatic context cleanup
-- Secure image generation with content filtering
+- Secure API key management
 
 ## Troubleshooting
 
@@ -217,19 +216,14 @@ discord-ai-bot/
    - Verify network connectivity
    - Monitor Redis performance
 
-3. **API Errors**
-   - Validate API keys
-   - Check API service status
-   - Review error logs
-
-4. **Image Generation Issues**
+3. **Image Generation Failures**
    - Verify Replicate API token
-   - Check prompt length and content
-   - Ensure bot has file attachment permissions
-   - Monitor Replicate service status
+   - Check prompt guidelines
+   - Monitor API quotas
 
 ### Logging
 - Error logs are printed to console
+- Debug command for Redis inspection
 - Use Docker logs for debugging:
   ```bash
   docker-compose logs -f ai_bot
