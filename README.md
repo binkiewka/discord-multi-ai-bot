@@ -6,9 +6,9 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
 
 ### AI Integration
 - **Multiple AI Providers**
-  - Anthropic Claude (claude-3-opus-20240229)
-  - OpenAI GPT-4 (gpt-4-turbo-preview)
-  - Google Gemini (gemini-pro)
+  - Anthropic Claude
+  - OpenAI GPT-4
+  - Google Gemini
 - **Image Generation**
   - Replicate API integration for AI image generation
   - Support for detailed image prompts with Flux AI model
@@ -23,26 +23,31 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
 - Easy to add new roles via YAML configuration
 
 Available Roles:
-- **Serious Roles**
+- **Core Assistants**
   - Default Assistant - A helpful AI assistant
-  - Concise Mode - Brief and direct responses
-  - Creative Assistant - Imaginative and innovative
-  - Academic Expert - Formal and scholarly
-  - DIY Expert - Practical project guidance
+  - Concise Assistant - Direct and brief responses
+  - Creative Assistant - Imaginative and innovative perspectives
+  - Academic Assistant - Formal and scholarly responses with citations
+  - DIY Expert - Clear guidance for home improvement projects
 
-- **Fun and Creative Roles**
+- **Entertainment & Humor**
+  - Comedian - Witty stand-up comedy routines
   - CL4P-TP 'Badjoke' Unit 🤖 - A pun-loving robot stuck in dad joke mode
-  - Nutty McNutface 🐿️ - A conspiracy theorist squirrel
-  - SpongeBot SquarePants 🧽 - Underwater optimist with Bikini Bottom logic
   - The Chaos Jester 🤡 - Mischievous meme-loving absurdist
-  - Reality Fracture v3.14 🔮 - Multi-dimensional metaphysical entity
+  - Lunatic - Deliberately nonsensical and arbitrary responses
+  - Nutty McNutface 🐿️ - Conspiracy theorist squirrel
+  - SpongeBot SquarePants 🧽 - Underwater optimist with Bikini Bottom logic
 
-- **Specialized Roles**
-  - Flux AI - Expert image prompt engineer
-  - Poet - Emotional verse creator
-  - Rapper - Lyrical wordsmith
-  - Dream Interpreter - Analytical dream analyst
-  - Domain Generator - Creative naming expert
+- **Creative & Artistic**
+  - Poet - Emotionally resonant verses and poetry
+  - Rapper - Powerful and meaningful lyrics with rhythm
+  - Reality Fracture v3.14 🔮 - Multi-dimensional metaphysical entity
+  - Flux AI - Expert image prompt engineer for Flux model
+  - Midjourney Prompt Generator - Creative prompt generation for AI art
+
+- **Specialized Tools**
+  - Dream Interpreter - Analytical dream symbolism analysis
+  - Domain Generator - Creative short domain name creation
 
 ### Server Management
 - **Channel-Specific Responses** - Bot only responds in designated channels
