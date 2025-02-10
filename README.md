@@ -69,7 +69,7 @@ Available Roles:
 ### Installation
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/discord-multi-ai-bot
+git clone https://github.com/binkiewka/discord-multi-ai-bot
 cd discord-multi-ai-bot
 ```
 
