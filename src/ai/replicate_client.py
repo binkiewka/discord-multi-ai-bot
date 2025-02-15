@@ -7,13 +7,28 @@ import io
 
 class ReplicateClient:
     def __init__(self, api_key: str):
+        """
+        Initialize the Replicate client with the Flux model.
+        
+        Args:
+            api_key (str): The Replicate API token
+        """
         self.client = replicate
         self.client.api_token = api_key
         self.model = "black-forest-labs/flux-schnell"
 
     async def generate_image(self, prompt: str) -> Optional[bytes]:
         """
-        Generate an image using the Flux-schnell model via Replicate API
+        Generate an image using the Flux-schnell model via Replicate API.
+        
+        Args:
+            prompt (str): The text prompt for image generation
+            
+        Returns:
+            Optional[bytes]: The generated image data as bytes, or None if generation fails
+            
+        Raises:
+            Exception: If there's an error during image generation
         """
         try:
             loop = asyncio.get_event_loop()
@@ -51,13 +66,20 @@ class ReplicateClient:
                               context: List[Dict], 
                               message: str) -> str:
         """
-        Generate a response containing an image based on the text prompt
+        Generate a response containing an image based on the text prompt.
+        
+        Args:
+            system_prompt (str): The system prompt (unused for image generation)
+            context (List[Dict]): The conversation context (unused for image generation)
+            message (str): The image generation prompt
+            
+        Returns:
+            str: A message indicating the success or failure of image generation
         """
         try:
             image_data = await self.generate_image(message)
             if not image_data:
                 return "I apologize, but I couldn't generate an image at this time."
-
             return "Image generated successfully!"
             
         except Exception as e:
