@@ -10,8 +10,10 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - OpenAI GPT-4
   - Google Gemini
 - **Image Generation**
-  - Replicate API integration for AI image generation
-  - Support for detailed image prompts with Flux AI model
+  - `!flux` - Fast image generation using Flux Schnell model
+  - `!fluxpro` - High-quality image generation using Flux Pro model
+  - `!recraft` - Advanced image generation using ReCraft v3
+  - Support for detailed image prompts 
   - Automatic image delivery in Discord
 - **Seamless Model Switching** - Switch between AI models per server (admin only)
 - **Context Memory** - Maintains conversation history using Redis
@@ -42,8 +44,6 @@ Available Roles:
   - Poet - Emotionally resonant verses and poetry
   - Rapper - Powerful and meaningful lyrics with rhythm
   - Reality Fracture v3.14 🔮 - Multi-dimensional metaphysical entity
-  - Flux AI - Expert image prompt engineer for Flux model
-  - Midjourney Prompt Generator - Creative prompt generation for AI art
 
 - **Specialized Tools**
   - Dream Interpreter - Analytical dream symbolism analysis
@@ -122,7 +122,9 @@ docker-compose up --build
 - `!setrole <role>` - Change the bot's personality (available to all users)
 - `!listroles` - Display available personality roles
 - `!listmodels` - Show available AI models
-- `!image <prompt>` - Generate an image from a text prompt
+- `!flux <prompt>` - Generate image using Flux Schnell model
+- `!fluxpro <prompt>` - Generate high-quality image using Flux Pro
+- `!recraft <prompt>` - Generate image using ReCraft v3
 
 ### Admin Commands
 - `!setchan` - Set the current channel for bot responses
@@ -130,8 +132,6 @@ docker-compose up --build
 - `!status` - Display current configuration
 
 ### Owner Commands
-- `!debug` - View Redis debug information
-- `!clearredis` - Clear all Redis data
 - `!shutdown` - Shutdown the bot
 - `!listservers` - List all servers the bot is in
 - `!leaveserver <server_id>` - Leave a specific server
@@ -151,7 +151,10 @@ discord-ai-bot/
 │   │   ├── anthropic_client.py
 │   │   ├── openai_client.py
 │   │   ├── google_client.py
-│   │   └── replicate_client.py
+│   │   ├── base_image_client.py
+│   │   ├── flux_client.py
+│   │   ├── fluxpro_client.py
+│   │   └── recraft_client.py
 │   ├── config/
 │   │   ├── roles.yaml
 │   │   └── config.py
@@ -172,7 +175,7 @@ discord-ai-bot/
 - Max tokens: 2048
 - Temperature: 0.7
 - Top P: 0.9
-- Response timeout: 60 seconds
+- Response timeout: 120 seconds
 - Image generation via Replicate API
 
 ### Redis Configuration

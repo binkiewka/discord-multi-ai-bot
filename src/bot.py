@@ -7,7 +7,9 @@ from db.redis_client import RedisClient
 from ai.anthropic_client import AnthropicClient
 from ai.openai_client import OpenAIClient
 from ai.google_client import GoogleAIClient
-from ai.replicate_client import ReplicateClient
+from ai.flux_client import FluxClient
+from ai.fluxpro_client import FluxProClient
+from ai.recraft_client import ReCraftClient
 from utils.helpers import send_chunked_message
 import io
 
@@ -25,11 +27,15 @@ class AIBot(commands.Bot):
         self.redis_client = RedisClient(config.redis_host, config.redis_port)
         self.owner_id = int(config.owner_id)
         
+        # Initialize AI clients
         self.ai_clients = {
             "claude": AnthropicClient(config.anthropic_api_key),
             "gpt4": OpenAIClient(config.openai_api_key),
             "gemini": GoogleAIClient(config.google_api_key),
-            "image": ReplicateClient(config.replicate_api_token)
+            # Image generation clients
+            "flux": FluxClient(config.replicate_api_token),
+            "fluxpro": FluxProClient(config.replicate_api_token),
+            "recraft": ReCraftClient(config.replicate_api_token)
         }
 
         # Command handlers dictionary
@@ -43,7 +49,10 @@ class AIBot(commands.Bot):
             'shutdown': self._handle_shutdown,
             'listservers': self._handle_list_servers,
             'leaveserver': self._handle_leave_server,
-            'image': self._handle_image
+            # Image generation commands
+            'flux': lambda ctx, prompt: self._handle_image_generation(ctx, prompt, "flux"),
+            'fluxpro': lambda ctx, prompt: self._handle_image_generation(ctx, prompt, "fluxpro"),
+            'recraft': lambda ctx, prompt: self._handle_image_generation(ctx, prompt, "recraft")
         }
 
     async def setup_hook(self):
@@ -183,45 +192,52 @@ class AIBot(commands.Bot):
         except ValueError:
             await ctx.send("Invalid server ID format. Please provide a valid number.")
 
-    async def _handle_image(self, ctx, prompt=None):
+    async def _handle_image_generation(self, ctx, prompt: Optional[str], model: str):
         """
-        Handle the image command by generating and sending an AI-generated image.
+        Handle image generation commands for different models.
         
         Args:
             ctx: The Discord context
             prompt: The image generation prompt
+            model: The model identifier to use for generation
         """
         if prompt is None:
-            await ctx.send("Please provide a prompt for the image generation.")
+            await ctx.send(f"Please provide a prompt for the {model} image generation.")
             return
 
         async with ctx.typing():
             try:
-                # Use the image client directly
-                image_client = self.ai_clients["image"]
+                # Get the appropriate image client
+                image_client = self.ai_clients.get(model)
+                if not image_client:
+                    await ctx.send(f"The {model} image generation service is not properly configured.")
+                    return
+
+                # Generate the image
                 image_data = await image_client.generate_image(prompt)
                 
                 if image_data:
                     # Create Discord file object from the image bytes
                     file = discord.File(
                         io.BytesIO(image_data), 
-                        filename="generated_image.png"
+                        filename=f"{model}_generated.png"
                     )
                     await ctx.send(
                         "Here's your image:", 
                         file=file
                     )
                 else:
-                    await ctx.send("Failed to generate image.")
+                    await ctx.send(f"Failed to generate image with {model}.")
             except Exception as e:
-                print(f"Error generating image: {str(e)}")  # Log the error
-                await ctx.send(f"Error generating image: {str(e)}")
+                print(f"Error generating image with {model}: {str(e)}")  # Log the error
+                await ctx.send(f"Error generating image with {model}: {str(e)}")
 
     async def get_ai_response(self, 
                             server_id: str, 
                             channel_id: str,
                             user_id: str, 
                             message: str) -> Optional[str]:
+        """Get AI response for a message"""
         # Check if channel is allowed
         allowed_channel = self.redis_client.get_allowed_channel(server_id)
         if not allowed_channel or allowed_channel != channel_id:
@@ -266,6 +282,7 @@ class AIBot(commands.Bot):
                 return f"Error generating response: {str(e)}"
 
     async def on_ready(self):
+        """Called when the bot is ready"""
         print(f"Bot is ready! Logged in as {self.user.name}")
         print(f"Bot ID: {self.user.id}")
         print(f"Connected to {len(self.guilds)} servers")
@@ -279,11 +296,11 @@ class AIBot(commands.Bot):
         )
 
     async def on_guild_join(self, guild):
+        """Called when the bot joins a new guild"""
         print(f"Joined new guild: {guild.name} (ID: {guild.id})")
-        # You could send a welcome message to the first available channel
-        # or implement other onboarding logic here
 
     async def on_message(self, message: discord.Message):
+        """Called when a message is received"""
         # Process commands
         await self.process_commands(message)
 
