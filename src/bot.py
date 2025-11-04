@@ -40,7 +40,10 @@ class AIBot(commands.Bot):
 
         # Command handlers dictionary
         self.command_handlers = {
-            'setchan': self._handle_set_channel,
+            'addchan': self._handle_add_channel,
+            'mute': self._handle_mute_channel,
+            'listchans': self._handle_list_channels,
+            'clearchans': self._handle_clear_channels,
             'setmodel': self._handle_set_model,
             'setrole': self._handle_set_role,
             'listroles': self._handle_list_roles,
@@ -76,17 +79,85 @@ class AIBot(commands.Bot):
                 else:
                     await h(ctx, arg)
 
-    async def _handle_set_channel(self, ctx, *args):
-        """Handle the setchan command"""
+    async def _handle_add_channel(self, ctx, *args):
+        """Handle the addchan command - adds current channel to allowed channels"""
         if not await self.has_permissions(ctx):
             await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
             return
-        
-        self.redis_client.set_allowed_channel(
-            str(ctx.guild.id), 
-            str(ctx.channel.id)
-        )
-        await ctx.send(f"AI bot will now respond in this channel only.")
+
+        server_id = str(ctx.guild.id)
+        channel_id = str(ctx.channel.id)
+
+        # Migrate old single-channel data if exists
+        self.redis_client.migrate_single_to_multi_channel(server_id)
+
+        # Add current channel to allowed channels
+        self.redis_client.add_allowed_channel(server_id, channel_id)
+        await ctx.send(f"AI bot will now respond in this channel.")
+
+    async def _handle_mute_channel(self, ctx, channel_arg=None):
+        """Handle the mute command - removes channel from allowed channels"""
+        if not await self.has_permissions(ctx):
+            await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
+            return
+
+        server_id = str(ctx.guild.id)
+
+        # Migrate old single-channel data if exists
+        self.redis_client.migrate_single_to_multi_channel(server_id)
+
+        # Determine which channel to mute
+        if channel_arg:
+            # User specified a channel (format: #channel-name or channel_id)
+            # Try to parse channel mention or ID
+            channel_id = channel_arg.strip('<>#')
+            try:
+                # Check if it's a valid channel in the guild
+                channel = ctx.guild.get_channel(int(channel_id))
+                if not channel:
+                    await ctx.send(f"Channel not found. Please provide a valid channel mention or ID.")
+                    return
+                channel_id = str(channel.id)
+            except ValueError:
+                await ctx.send(f"Invalid channel format. Use #channel-name or channel ID.")
+                return
+        else:
+            # No argument provided, mute current channel
+            channel_id = str(ctx.channel.id)
+
+        # Remove channel from allowed channels
+        self.redis_client.remove_allowed_channel(server_id, channel_id)
+        await ctx.send(f"AI bot will no longer respond in <#{channel_id}>.")
+
+    async def _handle_list_channels(self, ctx):
+        """Handle the listchans command - lists all allowed channels"""
+        if not await self.has_permissions(ctx):
+            await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
+            return
+
+        server_id = str(ctx.guild.id)
+
+        # Migrate old single-channel data if exists
+        self.redis_client.migrate_single_to_multi_channel(server_id)
+
+        allowed_channels = self.redis_client.get_allowed_channels(server_id)
+
+        if not allowed_channels:
+            await ctx.send("No channels are currently configured. Use !addchan to add channels.")
+            return
+
+        channel_mentions = [f"<#{channel_id}>" for channel_id in allowed_channels]
+        await ctx.send(f"Allowed channels:\n" + "\n".join(f"- {mention}" for mention in channel_mentions))
+
+    async def _handle_clear_channels(self, ctx):
+        """Handle the clearchans command - removes all allowed channels"""
+        if not await self.has_permissions(ctx):
+            await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
+            return
+
+        server_id = str(ctx.guild.id)
+        self.redis_client.clear_allowed_channels(server_id)
+        await ctx.send("All allowed channels have been cleared. Bot will not respond in any channel until channels are added with !addchan.")
 
     async def _handle_set_model(self, ctx, model=None):
         """Handle the setmodel command"""
@@ -142,13 +213,22 @@ class AIBot(commands.Bot):
             return
 
         server_id = str(ctx.guild.id)
-        current_channel = self.redis_client.get_allowed_channel(server_id)
+
+        # Migrate old single-channel data if exists
+        self.redis_client.migrate_single_to_multi_channel(server_id)
+
+        allowed_channels = self.redis_client.get_allowed_channels(server_id)
         current_model = self.redis_client.get_server_model(server_id)
         current_role = self.redis_client.get_server_role(server_id)
 
+        if allowed_channels:
+            channel_list = ", ".join([f"<#{channel_id}>" for channel_id in allowed_channels])
+        else:
+            channel_list = "None (bot will not respond)"
+
         status_message = (
             f"Current configuration:\n"
-            f"- Allowed Channel: <#{current_channel}>\n"
+            f"- Allowed Channels: {channel_list}\n"
             f"- AI Model: {current_model}\n"
             f"- Role: {current_role}"
         )
@@ -232,15 +312,17 @@ class AIBot(commands.Bot):
                 print(f"Error generating image with {model}: {str(e)}")  # Log the error
                 await ctx.send(f"Error generating image with {model}: {str(e)}")
 
-    async def get_ai_response(self, 
-                            server_id: str, 
+    async def get_ai_response(self,
+                            server_id: str,
                             channel_id: str,
-                            user_id: str, 
+                            user_id: str,
                             message: str) -> Optional[str]:
         """Get AI response for a message"""
-        # Check if channel is allowed
-        allowed_channel = self.redis_client.get_allowed_channel(server_id)
-        if not allowed_channel or allowed_channel != channel_id:
+        # Migrate old single-channel data if exists
+        self.redis_client.migrate_single_to_multi_channel(server_id)
+
+        # Check if channel is allowed (multi-channel support)
+        if not self.redis_client.is_channel_allowed(server_id, channel_id):
             return None
 
         channel = self.get_channel(int(channel_id))
