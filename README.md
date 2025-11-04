@@ -15,12 +15,14 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - `!recraft` - Advanced image generation using ReCraft v3
   - Support for detailed image prompts 
   - Automatic image delivery in Discord
-- **Seamless Model Switching** - Switch between AI models per server (admin only)
-- **Context Memory** - Maintains conversation history using Redis
+- **Channel-Specific Model Switching** - Each channel can use a different AI model (admin/moderator only)
+- **Context Memory** - Maintains separate conversation history per channel using Redis
 - **Multi-User Support** - Multiple users can participate in the same conversation thread
 
 ### Role-Based System
-- Public access to role switching - Any user can change the bot's personality
+- **Channel-Specific Roles** - Each channel can have its own bot personality
+- **Server Default Settings** - Set default model and role for new channels
+- **Admin/Moderator Controls** - Only admins and moderators can change roles and models
 - Predefined roles with unique personalities and behaviors
 - Easy to add new roles via YAML configuration
 
@@ -119,22 +121,33 @@ docker-compose up --build
 ## Usage
 
 ### Public Commands
-- `!setrole <role>` - Change the bot's personality (available to all users)
 - `!listroles` - Display available personality roles
 - `!listmodels` - Show available AI models
 - `!flux <prompt>` - Generate image using Flux Schnell model
 - `!fluxpro <prompt>` - Generate high-quality image using Flux Pro
 - `!recraft <prompt>` - Generate image using ReCraft v3
 
-### Admin Commands
+### Admin/Moderator Commands
+**Channel Management:**
 - `!addchan` - Add current channel to allowed channels
 - `!addchan <#channel>` - Add specified channel to allowed channels
 - `!mute` - Remove current channel from allowed channels
 - `!mute <#channel>` - Remove specified channel from allowed channels
 - `!listchans` - List all channels where bot will respond
 - `!clearchans` - Remove all allowed channels
-- `!setmodel <model>` - Switch AI model (claude/gpt4/gemini)
-- `!status` - Display current configuration including all allowed channels
+
+**Channel-Specific Settings:**
+- `!setrole <role>` - Change bot's personality for current channel
+- `!setrole <role> <#channel>` - Change bot's personality for specified channel
+- `!setmodel <model>` - Switch AI model for current channel (claude/gpt4/gemini)
+- `!setmodel <model> <#channel>` - Switch AI model for specified channel
+
+**Server Defaults:**
+- `!setdefaultrole <role>` - Set default personality for new channels
+- `!setdefaultmodel <model>` - Set default AI model for new channels
+
+**Status:**
+- `!status` - Display current configuration (server defaults and per-channel settings)
 
 ### Owner Commands
 - `!shutdown` - Shutdown the bot
@@ -186,24 +199,25 @@ discord-ai-bot/
 ### Redis Configuration
 - Context expiry: 2 hours
 - Max context messages: 30
-- Per-server settings storage
-- Debug tools for data inspection
+- Per-channel settings storage (role, model, context)
+- Server-wide default settings
+- Automatic migration from legacy single-channel format
 
 ## Security
 
 ### Permission Levels
 - **Public Access**
-  - Role selection
   - Image generation
-  - Basic informational commands
-- **Admin Access**
-  - Model selection
-  - Channel configuration
+  - Basic informational commands (list roles, list models)
+- **Admin/Moderator Access**
+  - Role selection (per-channel)
+  - Model selection (per-channel)
+  - Channel configuration (add/mute channels)
+  - Server default settings
   - Status monitoring
 - **Owner Access**
-  - Debug tools
-  - Redis management
-  - Server management
+  - Bot shutdown
+  - Server management (list/leave servers)
 
 ### Rate Limiting
 - Built-in Discord API rate limiting
