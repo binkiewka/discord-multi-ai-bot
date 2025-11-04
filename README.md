@@ -128,6 +128,7 @@ docker-compose up --build
 
 ### Admin Commands
 - `!addchan` - Add current channel to allowed channels
+- `!addchan <#channel>` - Add specified channel to allowed channels
 - `!mute` - Remove current channel from allowed channels
 - `!mute <#channel>` - Remove specified channel from allowed channels
 - `!listchans` - List all channels where bot will respond
