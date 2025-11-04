@@ -79,21 +79,39 @@ class AIBot(commands.Bot):
                 else:
                     await h(ctx, arg)
 
-    async def _handle_add_channel(self, ctx, *args):
-        """Handle the addchan command - adds current channel to allowed channels"""
+    async def _handle_add_channel(self, ctx, channel_arg=None):
+        """Handle the addchan command - adds channel to allowed channels"""
         if not await self.has_permissions(ctx):
             await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
             return
 
         server_id = str(ctx.guild.id)
-        channel_id = str(ctx.channel.id)
 
         # Migrate old single-channel data if exists
         self.redis_client.migrate_single_to_multi_channel(server_id)
 
-        # Add current channel to allowed channels
+        # Determine which channel to add
+        if channel_arg:
+            # User specified a channel (format: #channel-name or channel_id)
+            # Try to parse channel mention or ID
+            channel_id = channel_arg.strip('<>#')
+            try:
+                # Check if it's a valid channel in the guild
+                channel = ctx.guild.get_channel(int(channel_id))
+                if not channel:
+                    await ctx.send(f"Channel not found. Please provide a valid channel mention or ID.")
+                    return
+                channel_id = str(channel.id)
+            except ValueError:
+                await ctx.send(f"Invalid channel format. Use #channel-name or channel ID.")
+                return
+        else:
+            # No argument provided, add current channel
+            channel_id = str(ctx.channel.id)
+
+        # Add channel to allowed channels
         self.redis_client.add_allowed_channel(server_id, channel_id)
-        await ctx.send(f"AI bot will now respond in this channel.")
+        await ctx.send(f"AI bot will now respond in <#{channel_id}>.")
 
     async def _handle_mute_channel(self, ctx, channel_arg=None):
         """Handle the mute command - removes channel from allowed channels"""
