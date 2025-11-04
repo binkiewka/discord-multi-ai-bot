@@ -50,7 +50,7 @@ Available Roles:
   - Domain Generator - Creative short domain name creation
 
 ### Server Management
-- **Channel-Specific Responses** - Bot only responds in designated channels
+- **Multi-Channel Support** - Bot can respond in multiple designated channels per server
 - **Per-Server Configuration** - Each server maintains its own settings
 - **Admin Controls** - Server administrators can manage critical bot settings
 - **Debug Tools** - Advanced debugging capabilities for bot owners
@@ -127,9 +127,13 @@ docker-compose up --build
 - `!recraft <prompt>` - Generate image using ReCraft v3
 
 ### Admin Commands
-- `!setchan` - Set the current channel for bot responses
+- `!addchan` - Add current channel to allowed channels
+- `!mute` - Remove current channel from allowed channels
+- `!mute <#channel>` - Remove specified channel from allowed channels
+- `!listchans` - List all channels where bot will respond
+- `!clearchans` - Remove all allowed channels
 - `!setmodel <model>` - Switch AI model (claude/gpt4/gemini)
-- `!status` - Display current configuration
+- `!status` - Display current configuration including all allowed channels
 
 ### Owner Commands
 - `!shutdown` - Shutdown the bot
@@ -216,7 +220,7 @@ discord-ai-bot/
 ### Common Issues
 1. **Bot Not Responding**
    - Check if bot has correct channel permissions
-   - Verify channel is set with `!setchan`
+   - Verify channel is added with `!addchan` (use `!listchans` to see allowed channels)
    - Ensure proper intents are enabled
 
 2. **Slow Responses**
