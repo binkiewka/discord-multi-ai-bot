@@ -48,6 +48,8 @@ class AIBot(commands.Bot):
             'setrole': self._handle_set_role,
             'listroles': self._handle_list_roles,
             'listmodels': self._handle_list_models,
+            'channelconfig': self._handle_channel_config,
+            'clearchannelconfig': self._handle_clear_channel_config,
             'status': self._handle_status,
             'shutdown': self._handle_shutdown,
             'listservers': self._handle_list_servers,
@@ -177,39 +179,105 @@ class AIBot(commands.Bot):
         self.redis_client.clear_allowed_channels(server_id)
         await ctx.send("All allowed channels have been cleared. Bot will not respond in any channel until channels are added with !addchan.")
 
-    async def _handle_set_model(self, ctx, model=None):
-        """Handle the setmodel command"""
+    async def _handle_set_model(self, ctx, args=None):
+        """Handle the setmodel command - supports optional channel parameter
+        Usage: !setmodel <model> [#channel]
+        """
         if not await self.has_permissions(ctx):
             await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
             return
 
-        if model is None:
+        if args is None:
             await ctx.send(f"Please specify a model. Available models: {', '.join(self.ai_clients.keys())}")
             return
 
+        # Parse arguments: model and optional channel
+        parts = args.split()
+        if len(parts) == 0:
+            await ctx.send(f"Please specify a model. Available models: {', '.join(self.ai_clients.keys())}")
+            return
+
+        model = parts[0]
+        target_channel = None
+
+        # Check if model is valid
         if model not in self.ai_clients:
             await ctx.send(f"Invalid model. Available models: {', '.join(self.ai_clients.keys())}")
             return
-        
-        self.redis_client.set_server_model(str(ctx.guild.id), model)
-        await ctx.send(f"AI model set to {model}")
 
-    async def _handle_set_role(self, ctx, role=None):
-        """Handle the setrole command"""
+        # Check if channel was specified
+        if len(parts) > 1:
+            # User specified a channel (format: #channel-name or channel_id)
+            channel_arg = parts[1].strip('<>#')
+            try:
+                # Check if it's a valid channel in the guild
+                target_channel = ctx.guild.get_channel(int(channel_arg))
+                if not target_channel:
+                    await ctx.send(f"Channel not found. Please provide a valid channel mention or ID.")
+                    return
+            except ValueError:
+                await ctx.send(f"Invalid channel format. Use #channel-name or channel ID.")
+                return
+        else:
+            # No channel specified, use current channel
+            target_channel = ctx.channel
+
+        server_id = str(ctx.guild.id)
+        channel_id = str(target_channel.id)
+
+        # Set channel-specific model
+        self.redis_client.set_channel_model(server_id, channel_id, model)
+        await ctx.send(f"AI model set to **{model}** for <#{channel_id}>")
+
+    async def _handle_set_role(self, ctx, args=None):
+        """Handle the setrole command - supports optional channel parameter
+        Usage: !setrole <role> [#channel]
+        """
         if not await self.has_permissions(ctx):
             await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
             return
 
-        if role is None:
+        if args is None:
             await ctx.send(f"Please specify a role. Available roles: {', '.join(self.config.roles.keys())}")
             return
 
+        # Parse arguments: role and optional channel
+        parts = args.split()
+        if len(parts) == 0:
+            await ctx.send(f"Please specify a role. Available roles: {', '.join(self.config.roles.keys())}")
+            return
+
+        role = parts[0]
+        target_channel = None
+
+        # Check if role is valid
         if role not in self.config.roles:
             await ctx.send(f"Invalid role. Available roles: {', '.join(self.config.roles.keys())}")
             return
-        
-        self.redis_client.set_server_role(str(ctx.guild.id), role)
-        await ctx.send(f"AI role set to {role}")
+
+        # Check if channel was specified
+        if len(parts) > 1:
+            # User specified a channel (format: #channel-name or channel_id)
+            channel_arg = parts[1].strip('<>#')
+            try:
+                # Check if it's a valid channel in the guild
+                target_channel = ctx.guild.get_channel(int(channel_arg))
+                if not target_channel:
+                    await ctx.send(f"Channel not found. Please provide a valid channel mention or ID.")
+                    return
+            except ValueError:
+                await ctx.send(f"Invalid channel format. Use #channel-name or channel ID.")
+                return
+        else:
+            # No channel specified, use current channel
+            target_channel = ctx.channel
+
+        server_id = str(ctx.guild.id)
+        channel_id = str(target_channel.id)
+
+        # Set channel-specific role
+        self.redis_client.set_channel_role(server_id, channel_id, role)
+        await ctx.send(f"AI role set to **{role}** for <#{channel_id}>")
 
     async def _handle_list_roles(self, ctx):
         """Handle the listroles command"""
@@ -223,6 +291,96 @@ class AIBot(commands.Bot):
         """Handle the listmodels command"""
         models_info = ", ".join(self.ai_clients.keys())
         await ctx.send(f"Available models: {models_info}")
+
+    async def _handle_channel_config(self, ctx, args=None):
+        """Handle the channelconfig command - show channel-specific configuration
+        Usage: !channelconfig [#channel]
+        """
+        server_id = str(ctx.guild.id)
+        target_channel = None
+
+        # Parse optional channel argument
+        if args:
+            channel_arg = args.strip().split()[0].strip('<>#')
+            try:
+                target_channel = ctx.guild.get_channel(int(channel_arg))
+                if not target_channel:
+                    await ctx.send(f"Channel not found. Please provide a valid channel mention or ID.")
+                    return
+            except ValueError:
+                await ctx.send(f"Invalid channel format. Use #channel-name or channel ID.")
+                return
+        else:
+            # No channel specified, use current channel
+            target_channel = ctx.channel
+
+        channel_id = str(target_channel.id)
+
+        # Get channel-specific and server-wide settings
+        channel_role_raw = self.redis_client.redis.get(f"channel_role:{server_id}:{channel_id}")
+        server_role_raw = self.redis_client.redis.get(f"role:{server_id}")
+        effective_role = self.redis_client.get_channel_role(server_id, channel_id)
+
+        channel_model_raw = self.redis_client.redis.get(f"channel_model:{server_id}:{channel_id}")
+        server_model_raw = self.redis_client.redis.get(f"model:{server_id}")
+        effective_model = self.redis_client.get_channel_model(server_id, channel_id)
+
+        # Determine role source
+        if channel_role_raw:
+            role_source = "channel-specific"
+        elif server_role_raw:
+            role_source = "server-wide fallback"
+        else:
+            role_source = "default fallback"
+
+        # Determine model source
+        if channel_model_raw:
+            model_source = "channel-specific"
+        elif server_model_raw:
+            model_source = "server-wide fallback"
+        else:
+            model_source = "default fallback"
+
+        config_message = (
+            f"**Configuration for <#{channel_id}>:**\n"
+            f"• **Role:** {effective_role} ({role_source})\n"
+            f"• **Model:** {effective_model} ({model_source})"
+        )
+        await ctx.send(config_message)
+
+    async def _handle_clear_channel_config(self, ctx, args=None):
+        """Handle the clearchannelconfig command - clear channel-specific settings
+        Usage: !clearchannelconfig [#channel]
+        """
+        if not await self.has_permissions(ctx):
+            await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
+            return
+
+        server_id = str(ctx.guild.id)
+        target_channel = None
+
+        # Parse optional channel argument
+        if args:
+            channel_arg = args.strip().split()[0].strip('<>#')
+            try:
+                target_channel = ctx.guild.get_channel(int(channel_arg))
+                if not target_channel:
+                    await ctx.send(f"Channel not found. Please provide a valid channel mention or ID.")
+                    return
+            except ValueError:
+                await ctx.send(f"Invalid channel format. Use #channel-name or channel ID.")
+                return
+        else:
+            # No channel specified, use current channel
+            target_channel = ctx.channel
+
+        channel_id = str(target_channel.id)
+
+        # Clear channel-specific settings
+        self.redis_client.clear_channel_role(server_id, channel_id)
+        self.redis_client.clear_channel_model(server_id, channel_id)
+
+        await ctx.send(f"Channel-specific settings cleared for <#{channel_id}>. Now using server-wide settings.")
 
     async def _handle_status(self, ctx):
         """Handle the status command"""
@@ -345,9 +503,9 @@ class AIBot(commands.Bot):
 
         channel = self.get_channel(int(channel_id))
         async with channel.typing():  # Show typing indicator while processing
-            # Get current model and role
-            model = self.redis_client.get_server_model(server_id)
-            role_id = self.redis_client.get_server_role(server_id)
+            # Get current model and role (channel-specific with fallback)
+            model = self.redis_client.get_channel_model(server_id, channel_id)
+            role_id = self.redis_client.get_channel_role(server_id, channel_id)
             role: Role = self.config.roles[role_id]
 
             # Get conversation context
