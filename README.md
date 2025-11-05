@@ -147,9 +147,15 @@ docker-compose up --build
 - `!setmodel <model> <#channel>` - Set AI model for specific channel
 - `!clearchannelconfig` - Clear channel-specific settings for current channel (reverts to server-wide)
 - `!clearchannelconfig <#channel>` - Clear channel-specific settings for specific channel
-- `!status` - Display current server-wide configuration
 
-**Note:** Channel-specific settings take priority over server-wide settings. If no channel-specific setting exists, the bot falls back to server-wide settings, then to defaults.
+#### Server-Wide Defaults
+- `!setdefaultrole <role>` - Set server-wide default AI personality (fallback for channels without specific settings)
+- `!setdefaultmodel <model>` - Set server-wide default AI model (fallback for channels without specific settings)
+- `!status` - Display server defaults and all channel-specific configurations
+
+**Note:** Channel-specific settings take priority over server-wide defaults. If no channel-specific setting exists, the bot falls back to server-wide defaults, then to hardcoded defaults.
+
+**Permissions:** All admin commands require Administrator or Moderator permissions (or bot owner).
 
 ### Owner Commands
 - `!shutdown` - Shutdown the bot
@@ -212,15 +218,17 @@ discord-ai-bot/
   - Image generation
   - Basic informational commands
   - View channel configurations
-- **Admin Access**
-  - Role selection (channel-specific)
-  - Model selection (channel-specific)
-  - Channel configuration
-  - Status monitoring
+- **Admin/Moderator Access**
+  - Role selection (channel-specific and server-wide defaults)
+  - Model selection (channel-specific and server-wide defaults)
+  - Channel configuration (add/remove allowed channels)
+  - Status monitoring (view all configurations)
+  - Requires Administrator OR Moderator permissions
 - **Owner Access**
   - Debug tools
   - Redis management
   - Server management
+  - Shutdown command
 
 ### Rate Limiting
 - Built-in Discord API rate limiting

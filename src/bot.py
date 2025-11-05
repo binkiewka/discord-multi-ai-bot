@@ -46,6 +46,8 @@ class AIBot(commands.Bot):
             'clearchans': self._handle_clear_channels,
             'setmodel': self._handle_set_model,
             'setrole': self._handle_set_role,
+            'setdefaultmodel': self._handle_set_default_model,
+            'setdefaultrole': self._handle_set_default_role,
             'listroles': self._handle_list_roles,
             'listmodels': self._handle_list_models,
             'channelconfig': self._handle_channel_config,
@@ -65,10 +67,13 @@ class AIBot(commands.Bot):
         self.add_commands()
 
     async def has_permissions(self, ctx) -> bool:
-        """Check if user has required permissions (admin or bot owner)"""
+        """Check if user has required permissions (admin, moderator, or bot owner)"""
         return (
             ctx.author.id == self.owner_id or
-            (ctx.guild and ctx.author.guild_permissions.administrator)
+            (ctx.guild and (
+                ctx.author.guild_permissions.administrator or
+                ctx.author.guild_permissions.moderate_members
+            ))
         )
 
     def add_commands(self):
@@ -292,6 +297,46 @@ class AIBot(commands.Bot):
         models_info = ", ".join(self.ai_clients.keys())
         await ctx.send(f"Available models: {models_info}")
 
+    async def _handle_set_default_model(self, ctx, model=None):
+        """Handle the setdefaultmodel command - sets server-wide default model
+        Usage: !setdefaultmodel <model>
+        """
+        if not await self.has_permissions(ctx):
+            await ctx.send("You need administrator, moderator, or bot owner permissions to use this command.")
+            return
+
+        if model is None:
+            await ctx.send(f"Please specify a model. Available models: {', '.join(self.ai_clients.keys())}\nUsage: !setdefaultmodel <model>")
+            return
+
+        if model not in self.ai_clients:
+            await ctx.send(f"Invalid model. Available models: {', '.join(self.ai_clients.keys())}")
+            return
+
+        server_id = str(ctx.guild.id)
+        self.redis_client.set_default_model(server_id, model)
+        await ctx.send(f"Server default AI model set to **{model}**. Channels without specific model settings will use this model.")
+
+    async def _handle_set_default_role(self, ctx, role=None):
+        """Handle the setdefaultrole command - sets server-wide default role
+        Usage: !setdefaultrole <role>
+        """
+        if not await self.has_permissions(ctx):
+            await ctx.send("You need administrator, moderator, or bot owner permissions to use this command.")
+            return
+
+        if role is None:
+            await ctx.send(f"Please specify a role. Available roles: {', '.join(self.config.roles.keys())}\nUsage: !setdefaultrole <role>")
+            return
+
+        if role not in self.config.roles:
+            await ctx.send(f"Invalid role. Available roles: {', '.join(self.config.roles.keys())}")
+            return
+
+        server_id = str(ctx.guild.id)
+        self.redis_client.set_default_role(server_id, role)
+        await ctx.send(f"Server default AI role set to **{role}**. Channels without specific role settings will use this role.")
+
     async def _handle_channel_config(self, ctx, args=None):
         """Handle the channelconfig command - show channel-specific configuration
         Usage: !channelconfig [#channel]
@@ -383,9 +428,9 @@ class AIBot(commands.Bot):
         await ctx.send(f"Channel-specific settings cleared for <#{channel_id}>. Now using server-wide settings.")
 
     async def _handle_status(self, ctx):
-        """Handle the status command"""
+        """Handle the status command - shows server defaults and per-channel settings"""
         if not await self.has_permissions(ctx):
-            await ctx.send("You need administrator permissions or need to be the bot owner to use this command.")
+            await ctx.send("You need administrator, moderator, or bot owner permissions to use this command.")
             return
 
         server_id = str(ctx.guild.id)
@@ -393,21 +438,36 @@ class AIBot(commands.Bot):
         # Migrate old single-channel data if exists
         self.redis_client.migrate_single_to_multi_channel(server_id)
 
+        # Get server defaults
+        default_model = self.redis_client.get_default_model(server_id)
+        default_role = self.redis_client.get_default_role(server_id)
+
+        # Get allowed channels
         allowed_channels = self.redis_client.get_allowed_channels(server_id)
-        current_model = self.redis_client.get_server_model(server_id)
-        current_role = self.redis_client.get_server_role(server_id)
 
-        if allowed_channels:
-            channel_list = ", ".join([f"<#{channel_id}>" for channel_id in allowed_channels])
+        if not allowed_channels:
+            status_message = (
+                f"**Server Defaults:**\n"
+                f"- Default Model: {default_model}\n"
+                f"- Default Role: {default_role}\n\n"
+                f"**Allowed Channels:** None (bot will not respond)\n"
+                f"Use !addchan to add channels."
+            )
         else:
-            channel_list = "None (bot will not respond)"
+            # Build channel settings list showing each channel's configuration
+            channel_settings = []
+            for channel_id in allowed_channels:
+                role = self.redis_client.get_channel_role(server_id, channel_id)
+                model = self.redis_client.get_channel_model(server_id, channel_id)
+                channel_settings.append(f"  - <#{channel_id}>: Role=**{role}**, Model=**{model}**")
 
-        status_message = (
-            f"Current configuration:\n"
-            f"- Allowed Channels: {channel_list}\n"
-            f"- AI Model: {current_model}\n"
-            f"- Role: {current_role}"
-        )
+            status_message = (
+                f"**Server Defaults:**\n"
+                f"- Default Model: {default_model}\n"
+                f"- Default Role: {default_role}\n\n"
+                f"**Channel Settings:**\n" + "\n".join(channel_settings)
+            )
+
         await ctx.send(status_message)
 
     async def _handle_shutdown(self, ctx):
