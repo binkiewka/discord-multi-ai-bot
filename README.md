@@ -13,14 +13,16 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - `!flux` - Fast image generation using Flux Schnell model
   - `!fluxpro` - High-quality image generation using Flux Pro model
   - `!recraft` - Advanced image generation using ReCraft v3
-  - Support for detailed image prompts 
+  - Support for detailed image prompts
   - Automatic image delivery in Discord
-- **Seamless Model Switching** - Switch between AI models per server (admin only)
+- **Channel-Specific Configuration** - Set different AI models and roles per channel (admin only)
+- **Seamless Model Switching** - Switch between AI models with automatic fallback to server-wide defaults
 - **Context Memory** - Maintains conversation history using Redis
 - **Multi-User Support** - Multiple users can participate in the same conversation thread
 
 ### Role-Based System
-- Public access to role switching - Any user can change the bot's personality
+- **Channel-Specific Roles** - Each channel can have its own AI personality (admin controlled)
+- **Flexible Fallback System** - Channel-specific → Server-wide → Default role
 - Predefined roles with unique personalities and behaviors
 - Easy to add new roles via YAML configuration
 
@@ -51,7 +53,8 @@ Available Roles:
 
 ### Server Management
 - **Multi-Channel Support** - Bot can respond in multiple designated channels per server
-- **Per-Server Configuration** - Each server maintains its own settings
+- **Channel-Specific Configuration** - Each channel can have unique AI model and role settings
+- **Per-Server Configuration** - Server-wide settings act as fallback for channels without specific configuration
 - **Admin Controls** - Server administrators can manage critical bot settings
 - **Debug Tools** - Advanced debugging capabilities for bot owners
 
@@ -119,22 +122,34 @@ docker-compose up --build
 ## Usage
 
 ### Public Commands
-- `!setrole <role>` - Change the bot's personality (available to all users)
 - `!listroles` - Display available personality roles
 - `!listmodels` - Show available AI models
+- `!channelconfig` - Show current channel's AI configuration (role and model)
+- `!channelconfig <#channel>` - Show specific channel's AI configuration
 - `!flux <prompt>` - Generate image using Flux Schnell model
 - `!fluxpro <prompt>` - Generate high-quality image using Flux Pro
 - `!recraft <prompt>` - Generate image using ReCraft v3
 
 ### Admin Commands
+
+#### Channel Management
 - `!addchan` - Add current channel to allowed channels
 - `!addchan <#channel>` - Add specified channel to allowed channels
 - `!mute` - Remove current channel from allowed channels
 - `!mute <#channel>` - Remove specified channel from allowed channels
 - `!listchans` - List all channels where bot will respond
 - `!clearchans` - Remove all allowed channels
-- `!setmodel <model>` - Switch AI model (claude/gpt4/gemini)
-- `!status` - Display current configuration including all allowed channels
+
+#### AI Configuration (Channel-Specific)
+- `!setrole <role>` - Set AI personality for current channel
+- `!setrole <role> <#channel>` - Set AI personality for specific channel
+- `!setmodel <model>` - Set AI model for current channel (claude/gpt4/gemini)
+- `!setmodel <model> <#channel>` - Set AI model for specific channel
+- `!clearchannelconfig` - Clear channel-specific settings for current channel (reverts to server-wide)
+- `!clearchannelconfig <#channel>` - Clear channel-specific settings for specific channel
+- `!status` - Display current server-wide configuration
+
+**Note:** Channel-specific settings take priority over server-wide settings. If no channel-specific setting exists, the bot falls back to server-wide settings, then to defaults.
 
 ### Owner Commands
 - `!shutdown` - Shutdown the bot
@@ -186,18 +201,20 @@ discord-ai-bot/
 ### Redis Configuration
 - Context expiry: 2 hours
 - Max context messages: 30
-- Per-server settings storage
+- Per-server and per-channel settings storage
+- Automatic fallback chain: channel-specific → server-wide → defaults
 - Debug tools for data inspection
 
 ## Security
 
 ### Permission Levels
 - **Public Access**
-  - Role selection
   - Image generation
   - Basic informational commands
+  - View channel configurations
 - **Admin Access**
-  - Model selection
+  - Role selection (channel-specific)
+  - Model selection (channel-specific)
   - Channel configuration
   - Status monitoring
 - **Owner Access**

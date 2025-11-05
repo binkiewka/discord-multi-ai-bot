@@ -86,3 +86,85 @@ class RedisClient:
 
     def set_server_role(self, server_id: str, role: str):
         self.redis.set(f"role:{server_id}", role)
+
+    # Channel-specific role methods
+    def get_channel_role(self, server_id: str, channel_id: str) -> str:
+        """Get role for specific channel with fallback chain:
+        1. Channel-specific role
+        2. Server-wide role
+        3. Default role
+        """
+        # Try channel-specific first
+        channel_role = self.redis.get(f"channel_role:{server_id}:{channel_id}")
+        if channel_role:
+            return channel_role
+
+        # Fall back to server-wide
+        server_role = self.redis.get(f"role:{server_id}")
+        if server_role:
+            return server_role
+
+        # Fall back to default
+        return "default"
+
+    def set_channel_role(self, server_id: str, channel_id: str, role: str):
+        """Set role for specific channel"""
+        self.redis.set(f"channel_role:{server_id}:{channel_id}", role)
+
+    def clear_channel_role(self, server_id: str, channel_id: str):
+        """Remove channel-specific role (falls back to server-wide)"""
+        self.redis.delete(f"channel_role:{server_id}:{channel_id}")
+
+    def get_all_channel_roles(self, server_id: str) -> dict[str, str]:
+        """Get all channel→role mappings for server"""
+        pattern = f"channel_role:{server_id}:*"
+        keys = self.redis.keys(pattern)
+        result = {}
+        for key in keys:
+            # Extract channel_id from key
+            channel_id = key.split(":")[-1]
+            role = self.redis.get(key)
+            if role:
+                result[channel_id] = role
+        return result
+
+    # Channel-specific model methods
+    def get_channel_model(self, server_id: str, channel_id: str) -> str:
+        """Get model for specific channel with fallback chain:
+        1. Channel-specific model
+        2. Server-wide model
+        3. Default model (claude)
+        """
+        # Try channel-specific first
+        channel_model = self.redis.get(f"channel_model:{server_id}:{channel_id}")
+        if channel_model:
+            return channel_model
+
+        # Fall back to server-wide
+        server_model = self.redis.get(f"model:{server_id}")
+        if server_model:
+            return server_model
+
+        # Fall back to default
+        return "claude"
+
+    def set_channel_model(self, server_id: str, channel_id: str, model: str):
+        """Set model for specific channel"""
+        self.redis.set(f"channel_model:{server_id}:{channel_id}", model)
+
+    def clear_channel_model(self, server_id: str, channel_id: str):
+        """Remove channel-specific model (falls back to server-wide)"""
+        self.redis.delete(f"channel_model:{server_id}:{channel_id}")
+
+    def get_all_channel_models(self, server_id: str) -> dict[str, str]:
+        """Get all channel→model mappings for server"""
+        pattern = f"channel_model:{server_id}:*"
+        keys = self.redis.keys(pattern)
+        result = {}
+        for key in keys:
+            # Extract channel_id from key
+            channel_id = key.split(":")[-1]
+            model = self.redis.get(key)
+            if model:
+                result[channel_id] = model
+        return result
