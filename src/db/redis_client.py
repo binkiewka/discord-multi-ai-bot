@@ -87,6 +87,23 @@ class RedisClient:
     def set_server_role(self, server_id: str, role: str):
         self.redis.set(f"role:{server_id}", role)
 
+    # Alias methods for server-wide defaults (same as server-wide methods above)
+    def get_default_model(self, server_id: str) -> str:
+        """Get server-wide default model (alias for get_server_model)"""
+        return self.get_server_model(server_id)
+
+    def set_default_model(self, server_id: str, model: str):
+        """Set server-wide default model (alias for set_server_model)"""
+        self.set_server_model(server_id, model)
+
+    def get_default_role(self, server_id: str) -> str:
+        """Get server-wide default role (alias for get_server_role)"""
+        return self.get_server_role(server_id)
+
+    def set_default_role(self, server_id: str, role: str):
+        """Set server-wide default role (alias for set_server_role)"""
+        self.set_server_role(server_id, role)
+
     # Channel-specific role methods
     def get_channel_role(self, server_id: str, channel_id: str) -> str:
         """Get role for specific channel with fallback chain:
