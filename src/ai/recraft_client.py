@@ -1,6 +1,9 @@
 from ai.base_image_client import BaseImageClient
 from typing import Optional
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ReCraftClient(BaseImageClient):
     def __init__(self, api_key: str):
@@ -18,7 +21,7 @@ class ReCraftClient(BaseImageClient):
         Generate an image using the ReCraft model via Replicate API.
         """
         if len(prompt) > self.max_prompt_length:
-            print(f"Warning: Truncating prompt from {len(prompt)} to {self.max_prompt_length} characters")
+            logger.warning("Truncating prompt from %d to %d characters", len(prompt), self.max_prompt_length)
             prompt = prompt[:self.max_prompt_length]
 
         self.model_params["prompt"] = prompt
