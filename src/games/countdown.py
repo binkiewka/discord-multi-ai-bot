@@ -10,7 +10,7 @@ import time
 import json
 from dataclasses import dataclass, asdict, field
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from .expression_parser import ExpressionParser
 
