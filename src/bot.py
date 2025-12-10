@@ -16,75 +16,180 @@ from games.solver import CountdownSolver
 from utils.helpers import send_chunked_message
 import io
 
-class AnswerModal(discord.ui.Modal, title="Submit Answer"):
-    expression = discord.ui.TextInput(
-        label="Your Expression",
-        placeholder="e.g. (25 + 10) * 3",
-        required=True,
-        style=discord.TextStyle.short
-    )
 
-    def __init__(self, bot, game_view):
-        super().__init__()
+class CalculatorView(discord.ui.View):
+    def __init__(self, bot, game, user_id):
+        super().__init__(timeout=180)
         self.bot = bot
-        self.game_view = game_view
+        self.game = game
+        self.user_id = user_id
+        self.expression = ""
+        self.used_indices = set()
+        
+        # Add buttons
+        self._init_buttons()
 
-    async def on_submit(self, interaction: discord.Interaction):
-        # We need to defer or handle the response
-        # We will reuse the bot's existing answer logic but routed through interaction
-        server_id = str(interaction.guild_id)
-        channel_id = str(interaction.channel_id)
-        user_id = str(interaction.user.id)
-        expression = self.expression.value
+    def _init_buttons(self):
+        self.clear_items()
+        
+        # Row 0: Screen (Text Display) - Handled in message content
+        
+        # Row 1: Numbers (0-2)
+        for i, num in enumerate(self.game.numbers[:3]):
+            disabled = i in self.used_indices
+            self.add_item(NumberButton(num, i, disabled, row=0))
+            
+        # Row 1: Operators
+        self.add_item(OperatorButton("+", row=0))
+        self.add_item(OperatorButton("-", row=0))
 
-        try:
-            # Get game
-            game = self.bot.countdown_game.get_active_game(server_id, channel_id)
-            if not game:
-                await interaction.response.send_message("No active game!", ephemeral=True)
-                return
+        # Row 2: Numbers (3-5)
+        for i, num in enumerate(self.game.numbers[3:]):
+            idx = i + 3
+            disabled = idx in self.used_indices
+            self.add_item(NumberButton(num, idx, disabled, row=1))
 
-            submission = self.bot.countdown_game.submit_answer(
-                server_id, channel_id, user_id, expression
-            )
+        # Row 2: Operators
+        self.add_item(OperatorButton("*", row=1))
+        self.add_item(OperatorButton("/", row=1))
+        
+        # Row 3: Parentheses & Controls
+        self.add_item(OperatorButton("(", row=2))
+        self.add_item(OperatorButton(")", row=2))
+        self.add_item(ActionButton("⌫", "backspace", discord.ButtonStyle.danger, row=2))
+        self.add_item(ActionButton("CLR", "clear", discord.ButtonStyle.danger, row=2))
+        
+        # Row 4: Submit
+        self.add_item(ActionButton("SUBMIT ANSWER", "submit", discord.ButtonStyle.success, row=3))
 
-            if submission.valid:
-                if submission.distance == 0:
-                    response = f"🎯 **EXACT MATCH!** `{expression}` = {submission.result}"
-                    color = discord.Color.gold()
+    async def update_view(self, interaction: discord.Interaction):
+        self._init_buttons()
+        content = f"```fix\n{self.expression if self.expression else ' '}\n```"
+        await interaction.response.edit_message(content=content, view=self)
+
+class NumberButton(discord.ui.Button):
+    def __init__(self, number, index, disabled=False, row=0):
+        super().__init__(
+            label=str(number), 
+            style=discord.ButtonStyle.secondary, 
+            disabled=disabled, 
+            row=row
+        )
+        self.number = number
+        self.index = index
+
+    async def callback(self, interaction: discord.Interaction):
+        view: CalculatorView = self.view
+        if interaction.user.id != int(view.user_id):
+            return await interaction.response.send_message("This isn't your game!", ephemeral=True)
+            
+        view.expression += str(self.number)
+        view.used_indices.add(self.index)
+        await view.update_view(interaction)
+
+class OperatorButton(discord.ui.Button):
+    def __init__(self, operator, row=0):
+        super().__init__(
+            label=operator, 
+            style=discord.ButtonStyle.primary, 
+            row=row
+        )
+        self.operator = operator
+
+    async def callback(self, interaction: discord.Interaction):
+        view: CalculatorView = self.view
+        if interaction.user.id != int(view.user_id):
+            return await interaction.response.send_message("This isn't your game!", ephemeral=True)
+            
+        # Add spacing for readability, except parentheses sometimes
+        if self.operator in "()":
+            view.expression += self.operator
+        else:
+            view.expression += f" {self.operator} "
+        await view.update_view(interaction)
+
+class ActionButton(discord.ui.Button):
+    def __init__(self, label, action, style, row=0):
+        super().__init__(label=label, style=style, row=row)
+        self.action = action
+
+    async def callback(self, interaction: discord.Interaction):
+        view: CalculatorView = self.view
+        if interaction.user.id != int(view.user_id):
+            return await interaction.response.send_message("This isn't your game!", ephemeral=True)
+
+        if self.action == "clear":
+            view.expression = ""
+            view.used_indices.clear()
+            await view.update_view(interaction)
+            
+        elif self.action == "backspace":
+            # Simple backspace logic is tricky with tokens. 
+            # We'll just reset for now or try to strip last char/token.
+            # For robustness in this MVP, let's just clear. 
+            # Or implementing a token stack would be better but complex.
+            # Let's try simple string manipulation.
+            if view.expression:
+                view.expression = view.expression[:-1].strip()
+                # Re-validating used indices is hard without parsing. 
+                # So we simply Clear if they want to undo for safety.
+                view.expression = ""
+                view.used_indices.clear()
+            await view.update_view(interaction)
+            
+        elif self.action == "submit":
+            # Logic similar to original submit
+            server_id = str(interaction.guild_id)
+            channel_id = str(interaction.channel_id)
+            user_id = str(interaction.user.id)
+            
+            try:
+                submission = view.bot.countdown_game.submit_answer(
+                    server_id, channel_id, user_id, view.expression
+                )
+                
+                if submission.valid:
+                    if submission.distance == 0:
+                        response = f"🎯 **EXACT MATCH!** `{view.expression}` = {submission.result}"
+                        color = discord.Color.gold()
+                    else:
+                        response = f"✅ **Submitted:** `{view.expression}` = {submission.result} ({submission.distance} away)"
+                        color = discord.Color.green()
+                    
+                    # Send to main channel
+                    embed = discord.Embed(description=response, color=color)
+                    embed.set_footer(text=f"Submitted by {interaction.user.display_name}")
+                    await interaction.channel.send(embed=embed)
+                    await interaction.response.edit_message(content="Submitted!", view=None)
+
                 else:
-                    response = f"✅ **Submitted:** `{expression}` = {submission.result} ({submission.distance} away)"
-                    color = discord.Color.green()
-            else:
-                response = f"❌ **Invalid:** {submission.error}"
-                color = discord.Color.red()
-
-            embed = discord.Embed(description=response, color=color)
-            embed.set_footer(text=f"Submitted by {interaction.user.display_name}")
-            
-            await interaction.response.send_message(embed=embed)
-            
-        except ValueError as e:
-            await interaction.response.send_message(str(e), ephemeral=True)
+                    await interaction.response.send_message(f"❌ **Invalid:** {submission.error}", ephemeral=True)
+                    
+            except ValueError as e:
+                await interaction.response.send_message(str(e), ephemeral=True)
 
 class CountdownView(discord.ui.View):
     def __init__(self, bot):
-        super().__init__(timeout=None) # Timeout handled by game timer
+        super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.button(label="Submit Answer", style=discord.ButtonStyle.primary, emoji="📝")
-    async def submit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Play Now", style=discord.ButtonStyle.success, emoji="🎮")
+    async def play_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         server_id = str(interaction.guild_id)
         channel_id = str(interaction.channel_id)
         
-        # Check if game is still active
         game = self.bot.countdown_game.get_active_game(server_id, channel_id)
         if not game:
             await interaction.response.send_message("Game has ended!", ephemeral=True)
-            self.stop()
             return
-            
-        await interaction.response.send_modal(AnswerModal(self.bot, self))
+
+        # Create ephemeral calculator for this user
+        view = CalculatorView(self.bot, game, interaction.user.id)
+        await interaction.response.send_message(
+            content="```fix\n \n```", 
+            view=view, 
+            ephemeral=True
+        )
 
 
 class AIBot(commands.Bot):
@@ -653,12 +758,9 @@ class AIBot(commands.Bot):
 
             # Try to attach the banner image
             # Check for png first, then jpg
-            banner_filename = 'countdown_banner.png'
+            banner_filename = 'countdown_bg_wide.png'
             banner_path = os.path.join(self.assets_path, banner_filename)
-            if not os.path.exists(banner_path):
-                banner_filename = 'countdown_banner.jpg' 
-                banner_path = os.path.join(self.assets_path, banner_filename)
-
+            
             # Create the view with buttons
             view = CountdownView(self)
 
@@ -787,55 +889,37 @@ class AIBot(commands.Bot):
     def _create_countdown_embed(self, game, started_by) -> discord.Embed:
         """Create the game board embed."""
         embed = discord.Embed(
-            title="COUNTDOWN NUMBERS GAME",
-            description="Reach the target number using the given numbers!",
-            color=discord.Color.blue()
+            title=" NUMBERS GAME",
+            description="\u200b", # Empty description for cleaner look
+            color=discord.Color.dark_blue()
         )
 
-        # Target number - big and prominent
+        # Main Layout
+        # Target | Time
         embed.add_field(
             name="TARGET",
             value=f"```fix\n{game.target}\n```",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="TIME LEFT",
+            value=f"**{self.countdown_game.GAME_DURATION}s**",
+            inline=True
+        )
+
+        embed.add_field(name="\u200b", value="\u200b", inline=False) # Spacer
+
+        # Numbers strip
+        all_numbers = "  ".join([f"` {n} `" for n in game.numbers])
+        embed.add_field(
+            name="AVAILABLE NUMBERS",
+            value=f"**{all_numbers}**",
             inline=False
         )
 
-        # Available numbers - format nicely
-        large_str = "  ".join([f"**{n}**" for n in game.large_numbers])
-        small_str = "  ".join([f"**{n}**" for n in game.small_numbers])
-
-        embed.add_field(
-            name="Large Numbers",
-            value=large_str,
-            inline=True
-        )
-        embed.add_field(
-            name="Small Numbers",
-            value=small_str,
-            inline=True
-        )
-
-        embed.add_field(name="\u200b", value="\u200b", inline=False)  # Spacer
-
-        # Rules reminder
-        embed.add_field(
-            name="Rules",
-            value=(
-                "Use `+` `-` `*` `/` and parentheses `()`\n"
-                "Each number can only be used **ONCE**\n"
-                "Submit with: `!answer <expression>`"
-            ),
-            inline=False
-        )
-
-        # Time remaining
-        embed.add_field(
-            name="Time Limit",
-            value="**30 seconds**",
-            inline=True
-        )
-
-        embed.set_footer(text=f"Started by {started_by.display_name}")
-        embed.timestamp = discord.utils.utcnow()
+        embed.set_footer(text=f"Started by {started_by.display_name} • Click 'Play Now' to solve!")
+        # embed.timestamp = discord.utils.utcnow() # Removed to reduce height
 
         return embed
 
