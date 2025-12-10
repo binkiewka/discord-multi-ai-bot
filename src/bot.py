@@ -248,7 +248,8 @@ class AIBot(commands.Bot):
             'countdown': self._handle_countdown,
             'numbers': self._handle_countdown,  # alias
             'answer': self._handle_answer,
-            'solve': self._handle_answer  # alias
+            'solve': self._handle_answer,  # alias
+            'leaderboard': self._handle_leaderboard
         }
 
     async def setup_hook(self):
@@ -770,6 +771,28 @@ class AIBot(commands.Bot):
         except ValueError as e:
             await ctx.send(f"{str(e)}")
 
+    async def _handle_leaderboard(self, ctx):
+        """Show the server leaderboard."""
+        server_id = str(ctx.guild.id)
+        leaderboard = self.countdown_game.get_leaderboard(server_id)
+        
+        if not leaderboard:
+            await ctx.send("No scores yet! Play some games with `!countdown`.")
+            return
+            
+        embed = discord.Embed(
+            title="🏆 Numbers Game Leaderboard",
+            color=discord.Color.gold()
+        )
+        
+        desc = []
+        for i, (user_id, score) in enumerate(leaderboard):
+            medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"#{i+1}"
+            desc.append(f"**{medal}** <@{user_id}>: **{score}** pts")
+            
+        embed.description = "\n".join(desc)
+        await ctx.send(embed=embed)
+
     async def _handle_answer(self, ctx, expression=None):
         """
         Handle the answer/solve command - submit an answer.
@@ -850,6 +873,9 @@ class AIBot(commands.Bot):
         try:
             game, submissions = self.countdown_game.end_game(server_id, channel_id)
 
+            # Update scores
+            points_earned = self.countdown_game.update_scores(server_id, submissions)
+
             # Check if anyone found an exact solution
             exact_solution_found = any(s.valid and s.distance == 0 for s in submissions)
             
@@ -862,7 +888,7 @@ class AIBot(commands.Bot):
                 solver_result = (best_expr, best_val)
 
             # Create results embed
-            embed = self._create_results_embed(game, submissions, solver_result)
+            embed = self._create_results_embed(game, submissions, solver_result, points_earned)
             
             # Send results - clearing the view (buttons) from the original message would be nice but difficult 
             # without keeping track of message object in memory securely or fetching it.
@@ -910,9 +936,10 @@ class AIBot(commands.Bot):
 
         return embed
 
-    def _create_results_embed(self, game, submissions: list, solver_result=None) -> discord.Embed:
+    def _create_results_embed(self, game, submissions: list, solver_result=None, points_earned=None) -> discord.Embed:
         """Create the game results embed."""
         winners = self.countdown_game.determine_winners(submissions)
+        points_earned = points_earned or {}
 
         # Determine embed color and title based on results
         if not winners:
@@ -955,10 +982,14 @@ class AIBot(commands.Bot):
                     status = "EXACT!"
                 else:
                     status = f"{sub.distance} away"
+                
+                points_str = ""
+                if sub.user_id in points_earned:
+                    points_str = f" (+{points_earned[sub.user_id]} pts)"
 
                 embed.add_field(
                     name=f"{medal} #{i+1}",
-                    value=f"{user_mention}\n`{sub.expression}` = {sub.result}\n({status})",
+                    value=f"{user_mention}{points_str}\n`{sub.expression}` = {sub.result}\n({status})",
                     inline=True
                 )
 

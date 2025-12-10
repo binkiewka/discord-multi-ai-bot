@@ -127,6 +127,10 @@ class CountdownGame:
         """Generate Redis key for submissions."""
         return f"countdown:submissions:{server_id}:{channel_id}"
 
+    def _leaderboard_key(self, server_id: str) -> str:
+        """Generate Redis key for server leaderboard."""
+        return f"countdown:leaderboard:{server_id}"
+
     def _save_game(self, server_id: str, channel_id: str, state: GameState) -> None:
         """Save game state to Redis."""
         key = self._game_key(server_id, channel_id)
@@ -343,3 +347,66 @@ class CountdownGame:
         self._delete_game(server_id, channel_id)
         self._delete_submissions(server_id, channel_id)
         return True
+
+    def update_scores(self, server_id: str, submissions: List[Submission]) -> Dict[str, int]:
+        """
+        Update player scores based on game results.
+        
+        Points:
+        - Exact match (dist 0): 10 points
+        - Within 10: 5 points
+        - Within 25: 2 points
+        
+        Args:
+            server_id: Discord server ID
+            submissions: List of submissions
+            
+        Returns:
+            Dictionary of {user_id: points_earned}
+        """
+        key = self._leaderboard_key(server_id)
+        points_earned = {}
+        
+        for sub in submissions:
+            if not sub.valid:
+                continue
+                
+            points = 0
+            if sub.distance == 0:
+                points = 10
+            elif sub.distance <= 10:
+                points = 5
+            elif sub.distance <= 25:
+                points = 2
+            
+            if points > 0:
+                # Update Redis sorted set
+                self.redis.redis.zincrby(key, points, sub.user_id)
+                points_earned[sub.user_id] = points
+                
+        return points_earned
+
+    def get_leaderboard(self, server_id: str, limit: int = 10) -> List[Tuple[str, int]]:
+        """
+        Get top players for the server.
+        
+        Args:
+            server_id: Discord server ID
+            limit: Number of players to return
+            
+        Returns:
+            List of (user_id, score) tuples
+        """
+        key = self._leaderboard_key(server_id)
+        # zrevrange returns list of (member, score) with withscores=True
+        # Redis-py returns bytes for member, float for score usually
+        data = self.redis.redis.zrevrange(key, 0, limit - 1, withscores=True)
+        
+        # Clean up data (decode bytes, int score)
+        leaderboard = []
+        for member, score in data:
+            if isinstance(member, bytes):
+                member = member.decode('utf-8')
+            leaderboard.append((member, int(score)))
+            
+        return leaderboard
