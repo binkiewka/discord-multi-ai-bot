@@ -12,8 +12,80 @@ from ai.flux_client import FluxClient
 from ai.fluxpro_client import FluxProClient
 from ai.recraft_client import ReCraftClient
 from games.countdown import CountdownGame
+from games.solver import CountdownSolver
 from utils.helpers import send_chunked_message
 import io
+
+class AnswerModal(discord.ui.Modal, title="Submit Answer"):
+    expression = discord.ui.TextInput(
+        label="Your Expression",
+        placeholder="e.g. (25 + 10) * 3",
+        required=True,
+        style=discord.TextStyle.short
+    )
+
+    def __init__(self, bot, game_view):
+        super().__init__()
+        self.bot = bot
+        self.game_view = game_view
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # We need to defer or handle the response
+        # We will reuse the bot's existing answer logic but routed through interaction
+        server_id = str(interaction.guild_id)
+        channel_id = str(interaction.channel_id)
+        user_id = str(interaction.user.id)
+        expression = self.expression.value
+
+        try:
+            # Get game
+            game = self.bot.countdown_game.get_active_game(server_id, channel_id)
+            if not game:
+                await interaction.response.send_message("No active game!", ephemeral=True)
+                return
+
+            submission = self.bot.countdown_game.submit_answer(
+                server_id, channel_id, user_id, expression
+            )
+
+            if submission.valid:
+                if submission.distance == 0:
+                    response = f"🎯 **EXACT MATCH!** `{expression}` = {submission.result}"
+                    color = discord.Color.gold()
+                else:
+                    response = f"✅ **Submitted:** `{expression}` = {submission.result} ({submission.distance} away)"
+                    color = discord.Color.green()
+            else:
+                response = f"❌ **Invalid:** {submission.error}"
+                color = discord.Color.red()
+
+            embed = discord.Embed(description=response, color=color)
+            embed.set_footer(text=f"Submitted by {interaction.user.display_name}")
+            
+            await interaction.response.send_message(embed=embed)
+            
+        except ValueError as e:
+            await interaction.response.send_message(str(e), ephemeral=True)
+
+class CountdownView(discord.ui.View):
+    def __init__(self, bot):
+        super().__init__(timeout=None) # Timeout handled by game timer
+        self.bot = bot
+
+    @discord.ui.button(label="Submit Answer", style=discord.ButtonStyle.primary, emoji="📝")
+    async def submit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        server_id = str(interaction.guild_id)
+        channel_id = str(interaction.channel_id)
+        
+        # Check if game is still active
+        game = self.bot.countdown_game.get_active_game(server_id, channel_id)
+        if not game:
+            await interaction.response.send_message("Game has ended!", ephemeral=True)
+            self.stop()
+            return
+            
+        await interaction.response.send_modal(AnswerModal(self.bot, self))
+
 
 class AIBot(commands.Bot):
     def __init__(self, config: Config):
@@ -42,6 +114,7 @@ class AIBot(commands.Bot):
 
         # Initialize games
         self.countdown_game = CountdownGame(self.redis_client)
+        self.solver = CountdownSolver()
 
         # Path to assets
         self.assets_path = os.path.join(os.path.dirname(__file__), 'assets')
@@ -579,13 +652,22 @@ class AIBot(commands.Bot):
             embed = self._create_countdown_embed(game, ctx.author)
 
             # Try to attach the banner image
-            banner_path = os.path.join(self.assets_path, 'countdown_banner.jpg')
+            # Check for png first, then jpg
+            banner_filename = 'countdown_banner.png'
+            banner_path = os.path.join(self.assets_path, banner_filename)
+            if not os.path.exists(banner_path):
+                banner_filename = 'countdown_banner.jpg' 
+                banner_path = os.path.join(self.assets_path, banner_filename)
+
+            # Create the view with buttons
+            view = CountdownView(self)
+
             if os.path.exists(banner_path):
-                file = discord.File(banner_path, filename="banner.jpg")
-                embed.set_image(url="attachment://banner.jpg")
-                message = await ctx.send(file=file, embed=embed)
+                file = discord.File(banner_path, filename=banner_filename)
+                embed.set_image(url=f"attachment://{banner_filename}")
+                message = await ctx.send(file=file, embed=embed, view=view)
             else:
-                message = await ctx.send(embed=embed)
+                message = await ctx.send(embed=embed, view=view)
 
             # Store message ID for potential updates
             game.message_id = str(message.id)
@@ -679,8 +761,23 @@ class AIBot(commands.Bot):
         try:
             game, submissions = self.countdown_game.end_game(server_id, channel_id)
 
+            # Check if anyone found an exact solution
+            exact_solution_found = any(s.valid and s.distance == 0 for s in submissions)
+            
+            solver_result = None
+            if not exact_solution_found:
+                # Run solver to show what was possible
+                # This might take a moment, but since it's background task it's fine
+                # To be safe regarding blocking, maybe run in executor if slow, but for 6 numbers it's fast.
+                best_expr, best_val = self.solver.solve(game.target, game.numbers)
+                solver_result = (best_expr, best_val)
+
             # Create results embed
-            embed = self._create_results_embed(game, submissions)
+            embed = self._create_results_embed(game, submissions, solver_result)
+            
+            # Send results - clearing the view (buttons) from the original message would be nice but difficult 
+            # without keeping track of message object in memory securely or fetching it.
+            # We'll just send a new message.
             await ctx.send(embed=embed)
 
         except ValueError:
@@ -742,7 +839,7 @@ class AIBot(commands.Bot):
 
         return embed
 
-    def _create_results_embed(self, game, submissions: list) -> discord.Embed:
+    def _create_results_embed(self, game, submissions: list, solver_result=None) -> discord.Embed:
         """Create the game results embed."""
         winners = self.countdown_game.determine_winners(submissions)
 
@@ -798,7 +895,23 @@ class AIBot(commands.Bot):
             if len(winners) > 3:
                 embed.add_field(
                     name="Other Participants",
-                    value=f"+{len(winners) - 3} more players",
+                    value=f"{len(winners) - 3} others submitted valid answers.",
+                    inline=False
+                )
+
+        if solver_result:
+            expr, val = solver_result
+            if expr:
+                embed.add_field(name="\u200b", value="\u200b", inline=False)
+                val_str = f"{val}"
+                if val == game.target:
+                    title_str = "Best Possible Solution (Exact)"
+                else:
+                    title_str = f"Best Possible Solution ({abs(game.target - val)} away)"
+                
+                embed.add_field(
+                    name=title_str,
+                    value=f"```fix\n{expr} = {val}\n```",
                     inline=False
                 )
         else:
