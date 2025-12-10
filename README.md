@@ -15,6 +15,10 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - `!recraft` - Advanced image generation using ReCraft v3
   - Support for detailed image prompts
   - Automatic image delivery in Discord
+- **Games**
+  - Countdown Numbers Game - Classic TV show-style math puzzle game
+  - 30-second competitive multiplayer rounds
+  - Secure expression parser (no code injection)
 - **Channel-Specific Configuration** - Set different AI models and roles per channel (admin only)
 - **Seamless Model Switching** - Switch between AI models with automatic fallback to server-wide defaults
 - **Context Memory** - Maintains conversation history using Redis
@@ -130,6 +134,13 @@ docker-compose up --build
 - `!fluxpro <prompt>` - Generate high-quality image using Flux Pro
 - `!recraft <prompt>` - Generate image using ReCraft v3
 
+### Game Commands
+- `!countdown` / `!numbers` - Start a new Countdown Numbers Game
+- `!answer <expression>` / `!solve <expression>` - Submit your answer
+
+**Countdown Numbers Game:**
+A fork of the classic TV show game. The bot generates a target number (100-999) and gives you 5 numbers to work with (2 large: 25/50/75/100, and 3 small: 1-10). You have 30 seconds to create a mathematical expression using `+`, `-`, `*`, `/` and parentheses to reach the target. Each number can only be used once. Multiple players can compete - closest to target wins!
+
 ### Admin Commands
 
 #### Channel Management
@@ -181,11 +192,17 @@ discord-ai-bot/
 │   │   ├── flux_client.py
 │   │   ├── fluxpro_client.py
 │   │   └── recraft_client.py
+│   ├── assets/
+│   │   └── countdown_banner.jpg
 │   ├── config/
 │   │   ├── roles.yaml
 │   │   └── config.py
 │   ├── db/
 │   │   └── redis_client.py
+│   ├── games/
+│   │   ├── __init__.py
+│   │   ├── countdown.py
+│   │   └── expression_parser.py
 │   ├── utils/
 │   │   └── helpers.py
 │   ├── bot.py

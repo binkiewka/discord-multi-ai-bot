@@ -6,7 +6,7 @@ from functools import partial
 class GoogleAIClient:
     def __init__(self, api_key: str):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-pro')
+        self.model = genai.GenerativeModel('gemini-2.5-pro')
         self.generation_config = genai.types.GenerationConfig(
             temperature=0.7,
             top_p=0.9,

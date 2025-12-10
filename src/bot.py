@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from typing import Optional
 import asyncio
+import os
 from config.config import Config, Role
 from db.redis_client import RedisClient
 from ai.anthropic_client import AnthropicClient
@@ -10,6 +11,7 @@ from ai.google_client import GoogleAIClient
 from ai.flux_client import FluxClient
 from ai.fluxpro_client import FluxProClient
 from ai.recraft_client import ReCraftClient
+from games.countdown import CountdownGame
 from utils.helpers import send_chunked_message
 import io
 
@@ -38,6 +40,12 @@ class AIBot(commands.Bot):
             "recraft": ReCraftClient(config.replicate_api_token)
         }
 
+        # Initialize games
+        self.countdown_game = CountdownGame(self.redis_client)
+
+        # Path to assets
+        self.assets_path = os.path.join(os.path.dirname(__file__), 'assets')
+
         # Command handlers dictionary
         self.command_handlers = {
             'addchan': self._handle_add_channel,
@@ -59,7 +67,12 @@ class AIBot(commands.Bot):
             # Image generation commands
             'flux': lambda ctx, prompt: self._handle_image_generation(ctx, prompt, "flux"),
             'fluxpro': lambda ctx, prompt: self._handle_image_generation(ctx, prompt, "fluxpro"),
-            'recraft': lambda ctx, prompt: self._handle_image_generation(ctx, prompt, "recraft")
+            'recraft': lambda ctx, prompt: self._handle_image_generation(ctx, prompt, "recraft"),
+            # Game commands
+            'countdown': self._handle_countdown,
+            'numbers': self._handle_countdown,  # alias
+            'answer': self._handle_answer,
+            'solve': self._handle_answer  # alias
         }
 
     async def setup_hook(self):
@@ -547,6 +560,265 @@ class AIBot(commands.Bot):
             except Exception as e:
                 print(f"Error generating image with {model}: {str(e)}")  # Log the error
                 await ctx.send(f"Error generating image with {model}: {str(e)}")
+
+    # ==================== COUNTDOWN NUMBERS GAME ====================
+
+    async def _handle_countdown(self, ctx, args=None):
+        """
+        Handle the countdown/numbers command - starts a new game.
+        Usage: !countdown or !numbers
+        """
+        server_id = str(ctx.guild.id)
+        channel_id = str(ctx.channel.id)
+        user_id = str(ctx.author.id)
+
+        try:
+            game = self.countdown_game.create_game(server_id, channel_id, user_id)
+
+            # Create and send game embed
+            embed = self._create_countdown_embed(game, ctx.author)
+
+            # Try to attach the banner image
+            banner_path = os.path.join(self.assets_path, 'countdown_banner.jpg')
+            if os.path.exists(banner_path):
+                file = discord.File(banner_path, filename="banner.jpg")
+                embed.set_image(url="attachment://banner.jpg")
+                message = await ctx.send(file=file, embed=embed)
+            else:
+                message = await ctx.send(embed=embed)
+
+            # Store message ID for potential updates
+            game.message_id = str(message.id)
+            self.countdown_game._save_game(server_id, channel_id, game)
+
+            # Schedule game end
+            asyncio.create_task(
+                self._countdown_timer(ctx, server_id, channel_id, game.end_time)
+            )
+
+        except ValueError as e:
+            await ctx.send(f"{str(e)}")
+
+    async def _handle_answer(self, ctx, expression=None):
+        """
+        Handle the answer/solve command - submit an answer.
+        Usage: !answer 25 * 4 + 7 or !solve (25 + 75) * 3
+        """
+        if expression is None:
+            await ctx.send("Please provide an expression! Example: `!answer 25 * 4 + 7`", delete_after=5)
+            return
+
+        server_id = str(ctx.guild.id)
+        channel_id = str(ctx.channel.id)
+        user_id = str(ctx.author.id)
+
+        try:
+            # Get game to access target
+            game = self.countdown_game.get_active_game(server_id, channel_id)
+            if not game:
+                await ctx.send("No active game in this channel! Start one with `!countdown`", delete_after=5)
+                return
+
+            submission = self.countdown_game.submit_answer(
+                server_id, channel_id, user_id, expression
+            )
+
+            # Create confirmation embed
+            if submission.valid:
+                if submission.distance == 0:
+                    embed = discord.Embed(
+                        title="EXACT MATCH!",
+                        description=f"`{expression}` = **{submission.result}**",
+                        color=discord.Color.gold()
+                    )
+                    embed.add_field(
+                        name="Target",
+                        value=f"**{game.target}**",
+                        inline=True
+                    )
+                else:
+                    embed = discord.Embed(
+                        title="Answer Submitted",
+                        description=f"`{expression}` = **{submission.result}**",
+                        color=discord.Color.green()
+                    )
+                    embed.add_field(
+                        name="Distance from target",
+                        value=f"**{submission.distance}** away from {game.target}",
+                        inline=False
+                    )
+            else:
+                embed = discord.Embed(
+                    title="Invalid Answer",
+                    description=f"{submission.error}",
+                    color=discord.Color.red()
+                )
+
+            embed.set_footer(text=f"Submitted by {ctx.author.display_name}")
+            await ctx.send(embed=embed, delete_after=10)
+
+            # Delete the command message to reduce clutter
+            try:
+                await ctx.message.delete()
+            except discord.errors.Forbidden:
+                pass  # Bot doesn't have permission
+
+        except ValueError as e:
+            await ctx.send(f"{str(e)}", delete_after=5)
+
+    async def _countdown_timer(self, ctx, server_id: str, channel_id: str, end_time: float):
+        """Background task to handle game timing."""
+        import time
+
+        # Wait until end time
+        wait_time = end_time - time.time()
+        if wait_time > 0:
+            await asyncio.sleep(wait_time)
+
+        # End the game
+        try:
+            game, submissions = self.countdown_game.end_game(server_id, channel_id)
+
+            # Create results embed
+            embed = self._create_results_embed(game, submissions)
+            await ctx.send(embed=embed)
+
+        except ValueError:
+            # Game was already ended or cancelled
+            pass
+
+    def _create_countdown_embed(self, game, started_by) -> discord.Embed:
+        """Create the game board embed."""
+        embed = discord.Embed(
+            title="COUNTDOWN NUMBERS GAME",
+            description="Reach the target number using the given numbers!",
+            color=discord.Color.blue()
+        )
+
+        # Target number - big and prominent
+        embed.add_field(
+            name="TARGET",
+            value=f"```fix\n{game.target}\n```",
+            inline=False
+        )
+
+        # Available numbers - format nicely
+        large_str = "  ".join([f"**{n}**" for n in game.large_numbers])
+        small_str = "  ".join([f"**{n}**" for n in game.small_numbers])
+
+        embed.add_field(
+            name="Large Numbers",
+            value=large_str,
+            inline=True
+        )
+        embed.add_field(
+            name="Small Numbers",
+            value=small_str,
+            inline=True
+        )
+
+        embed.add_field(name="\u200b", value="\u200b", inline=False)  # Spacer
+
+        # Rules reminder
+        embed.add_field(
+            name="Rules",
+            value=(
+                "Use `+` `-` `*` `/` and parentheses `()`\n"
+                "Each number can only be used **ONCE**\n"
+                "Submit with: `!answer <expression>`"
+            ),
+            inline=False
+        )
+
+        # Time remaining
+        embed.add_field(
+            name="Time Limit",
+            value="**30 seconds**",
+            inline=True
+        )
+
+        embed.set_footer(text=f"Started by {started_by.display_name}")
+        embed.timestamp = discord.utils.utcnow()
+
+        return embed
+
+    def _create_results_embed(self, game, submissions: list) -> discord.Embed:
+        """Create the game results embed."""
+        winners = self.countdown_game.determine_winners(submissions)
+
+        # Determine embed color and title based on results
+        if not winners:
+            color = discord.Color.dark_grey()
+            title = "GAME OVER - No Valid Solutions!"
+        elif winners[0].distance == 0:
+            color = discord.Color.gold()
+            title = "GAME OVER - PERFECT SOLUTION!"
+        else:
+            color = discord.Color.green()
+            title = "GAME OVER - Results"
+
+        embed = discord.Embed(title=title, color=color)
+
+        # Recap the challenge
+        embed.add_field(
+            name="Target Was",
+            value=f"**{game.target}**",
+            inline=True
+        )
+
+        numbers_str = " ".join(map(str, game.numbers))
+        embed.add_field(
+            name="Numbers Were",
+            value=numbers_str,
+            inline=True
+        )
+
+        embed.add_field(name="\u200b", value="\u200b", inline=False)  # Spacer
+
+        if winners:
+            # Podium display
+            medals = ["", "", ""]
+
+            for i, sub in enumerate(winners[:3]):
+                medal = medals[i] if i < 3 else ""
+                user_mention = f"<@{sub.user_id}>"
+
+                if sub.distance == 0:
+                    status = "EXACT!"
+                else:
+                    status = f"{sub.distance} away"
+
+                embed.add_field(
+                    name=f"{medal} #{i+1}",
+                    value=f"{user_mention}\n`{sub.expression}` = {sub.result}\n({status})",
+                    inline=True
+                )
+
+            # If more than 3 participants, show count
+            if len(winners) > 3:
+                embed.add_field(
+                    name="Other Participants",
+                    value=f"+{len(winners) - 3} more players",
+                    inline=False
+                )
+        else:
+            embed.add_field(
+                name="No Winners",
+                value="Nobody submitted a valid solution!",
+                inline=False
+            )
+
+        # Stats
+        total_submissions = len(submissions)
+        valid_submissions = len([s for s in submissions if s.valid])
+
+        embed.set_footer(
+            text=f"Submissions: {valid_submissions}/{total_submissions} valid"
+        )
+
+        return embed
+
+    # ==================== END COUNTDOWN GAME ====================
 
     async def get_ai_response(self,
                             server_id: str,
