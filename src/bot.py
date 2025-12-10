@@ -32,38 +32,36 @@ class CalculatorView(discord.ui.View):
     def _init_buttons(self):
         self.clear_items()
         
-        # Row 0: Screen (Text Display) - Handled in message content
+        # Row 0: Large Numbers (2 nums)
+        # We need to know which are large/small but we only have game.numbers list.
+        # However, we know typically first 2 are large in standard game, or we can just assume 
+        # the list order is preserved from generation (large + small).
+        # Let's just put first 2 in Row 0, and next 4 in Row 1.
         
-        # Row 1: Numbers (0-2)
-        for i, num in enumerate(self.game.numbers[:3]):
+        for i, num in enumerate(self.game.numbers[:2]):
             disabled = i in self.used_indices
             self.add_item(NumberButton(num, i, disabled, row=0))
             
-        # Row 1: Operators
-        self.add_item(OperatorButton("+", row=0))
-        self.add_item(OperatorButton("-", row=0))
-
-        # Row 2: Numbers (3-5)
-        for i, num in enumerate(self.game.numbers[3:]):
-            idx = i + 3
+        # Row 1: Small Numbers (4 nums)
+        for i, num in enumerate(self.game.numbers[2:]):
+            idx = i + 2
             disabled = idx in self.used_indices
             self.add_item(NumberButton(num, idx, disabled, row=1))
 
-        # Row 2: Operators
-        self.add_item(OperatorButton("*", row=1))
-        self.add_item(OperatorButton("/", row=1))
-        
-        # Row 3: Parentheses & Controls
-        self.add_item(OperatorButton("(", row=2))
-        self.add_item(OperatorButton(")", row=2))
-        self.add_item(ActionButton("⌫", "backspace", discord.ButtonStyle.danger, row=2))
-        self.add_item(ActionButton("CLR", "clear", discord.ButtonStyle.danger, row=2))
-        
-        # Row 4: Submit
-        self.add_item(ActionButton("SUBMIT ANSWER", "submit", discord.ButtonStyle.success, row=3))
+        # Row 2: Basic Operators + Open Paren
+        ops_row2 = ["+", "-", "*", "/", "("]
+        for op in ops_row2:
+            self.add_item(OperatorButton(op, row=2))
+
+        # Row 3: Close Paren, Controls, Submit
+        self.add_item(OperatorButton(")", row=3))
+        self.add_item(ActionButton("⌫", "backspace", discord.ButtonStyle.danger, row=3))
+        self.add_item(ActionButton("CLR", "clear", discord.ButtonStyle.danger, row=3))
+        self.add_item(ActionButton("SUBMIT", "submit", discord.ButtonStyle.success, row=3))
 
     async def update_view(self, interaction: discord.Interaction):
         self._init_buttons()
+        # Ensure screen is always visible
         content = f"```fix\n{self.expression if self.expression else ' '}\n```"
         await interaction.response.edit_message(content=content, view=self)
 
@@ -756,20 +754,9 @@ class AIBot(commands.Bot):
             # Create and send game embed
             embed = self._create_countdown_embed(game, ctx.author)
 
-            # Try to attach the banner image
-            # Check for png first, then jpg
-            banner_filename = 'countdown_bg_wide.png'
-            banner_path = os.path.join(self.assets_path, banner_filename)
-            
             # Create the view with buttons
             view = CountdownView(self)
-
-            if os.path.exists(banner_path):
-                file = discord.File(banner_path, filename=banner_filename)
-                embed.set_image(url=f"attachment://{banner_filename}")
-                message = await ctx.send(file=file, embed=embed, view=view)
-            else:
-                message = await ctx.send(embed=embed, view=view)
+            message = await ctx.send(embed=embed, view=view)
 
             # Store message ID for potential updates
             game.message_id = str(message.id)
