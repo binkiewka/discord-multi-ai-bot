@@ -357,8 +357,24 @@ class AIBot(commands.Bot):
     async def on_ready(self):
         print(f"Logged in as {self.user} (ID: {self.user.id})", flush=True)
         print("------", flush=True)
+        
+        # Debug: Fetch current global commands to identify the conflict
+        try:
+             url = f"https://discord.com/api/v10/applications/{self.user.id}/commands"
+             headers = {"Authorization": f"Bot {self.config.discord_token}"}
+             async with aiohttp.ClientSession() as session:
+                 async with session.get(url, headers=headers) as resp:
+                     if resp.status == 200:
+                         commands = await resp.json()
+                         print("CURRENT GLOBAL COMMANDS:", flush=True)
+                         for cmd in commands:
+                             print(f"- {cmd['name']} (ID: {cmd['id']}) (Type: {cmd.get('type', 1)})", flush=True)
+                     else:
+                         print(f"Failed to fetch commands: {resp.status} {await resp.text()}", flush=True)
+        except Exception as e:
+             print(f"Error fetching commands: {e}", flush=True)
+
         # Fallback sync if setup_hook didn't run for some reason
-        # Note: This is less ideal than setup_hook but works for debugging
         if not hasattr(self, '_setup_hook_ran'):
              print("Warning: setup_hook did not run! Syncing tree from on_ready...", flush=True)
              try:
