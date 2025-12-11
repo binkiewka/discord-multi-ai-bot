@@ -175,7 +175,7 @@ class CountdownView(discord.ui.View):
     async def play_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         server_id = str(interaction.guild_id)
         channel_id = str(interaction.channel_id)
-        
+
         game = self.bot.countdown_game.get_active_game(server_id, channel_id)
         if not game:
             await interaction.response.send_message("Game has ended!", ephemeral=True)
@@ -184,10 +184,125 @@ class CountdownView(discord.ui.View):
         # Create ephemeral calculator for this user
         view = CalculatorView(self.bot, game, interaction.user.id)
         await interaction.response.send_message(
-            content="```fix\n \n```", 
-            view=view, 
+            content="```fix\n \n```",
+            view=view,
             ephemeral=True
         )
+
+
+class RoundsSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="1 Round", value="1"),
+            discord.SelectOption(label="2 Rounds", value="2"),
+            discord.SelectOption(label="3 Rounds", value="3", default=True),
+            discord.SelectOption(label="4 Rounds", value="4"),
+            discord.SelectOption(label="5 Rounds", value="5"),
+        ]
+        super().__init__(placeholder="Select rounds...", options=options, row=0)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: CountdownSettingsView = self.view
+        view.rounds = int(self.values[0])
+        await view.update_lobby_embed(interaction)
+
+
+class TimeSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="30 seconds", value="30"),
+            discord.SelectOption(label="60 seconds", value="60", default=True),
+            discord.SelectOption(label="120 seconds", value="120"),
+        ]
+        super().__init__(placeholder="Select time per round...", options=options, row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: CountdownSettingsView = self.view
+        view.seconds_per_round = int(self.values[0])
+        await view.update_lobby_embed(interaction)
+
+
+class CountdownSettingsView(discord.ui.View):
+    def __init__(self, bot, lobby, host):
+        super().__init__(timeout=300)  # 5 minute timeout for lobby
+        self.bot = bot
+        self.lobby = lobby
+        self.host = host
+        self.rounds = lobby.rounds
+        self.seconds_per_round = lobby.seconds_per_round
+
+        # Add select menus
+        self.add_item(RoundsSelect())
+        self.add_item(TimeSelect())
+
+    @discord.ui.button(label="Ready", style=discord.ButtonStyle.success, emoji="✅", row=2)
+    async def ready_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        server_id = str(interaction.guild_id)
+        channel_id = str(interaction.channel_id)
+        user_id = str(interaction.user.id)
+
+        try:
+            self.lobby = self.bot.countdown_game.toggle_ready(server_id, channel_id, user_id)
+            await self.update_lobby_embed(interaction)
+        except ValueError as e:
+            await interaction.response.send_message(str(e), ephemeral=True)
+
+    @discord.ui.button(label="Start Game", style=discord.ButtonStyle.primary, emoji="▶️", row=2)
+    async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Only host can start
+        if str(interaction.user.id) != self.lobby.host_id:
+            await interaction.response.send_message("Only the host can start the game!", ephemeral=True)
+            return
+
+        server_id = str(interaction.guild_id)
+        channel_id = str(interaction.channel_id)
+
+        # Update lobby with current settings before starting
+        self.lobby.rounds = self.rounds
+        self.lobby.seconds_per_round = self.seconds_per_round
+        self.bot.countdown_game.update_lobby(server_id, channel_id, self.lobby)
+
+        # Create the game from lobby
+        game = self.bot.countdown_game.create_game_from_lobby(self.lobby)
+
+        # Create game embed
+        embed = self.bot._create_countdown_embed(game, interaction.user)
+        view = CountdownView(self.bot)
+
+        # Update the message with game board
+        await interaction.response.edit_message(embed=embed, view=view)
+
+        # Store message for timer updates
+        message = await interaction.original_response()
+        game.message_id = str(message.id)
+        self.bot.countdown_game._save_game(server_id, channel_id, game)
+
+        # Start the timer with live updates
+        asyncio.create_task(
+            self.bot._countdown_timer_with_updates(interaction, server_id, channel_id, message, game)
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, emoji="✕", row=2)
+    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Only host can cancel
+        if str(interaction.user.id) != self.lobby.host_id:
+            await interaction.response.send_message("Only the host can cancel the lobby!", ephemeral=True)
+            return
+
+        server_id = str(interaction.guild_id)
+        channel_id = str(interaction.channel_id)
+
+        self.bot.countdown_game.delete_lobby(server_id, channel_id)
+        await interaction.response.edit_message(
+            content="Lobby cancelled.",
+            embed=None,
+            view=None
+        )
+        self.stop()
+
+    async def update_lobby_embed(self, interaction: discord.Interaction):
+        embed = self.bot._create_lobby_embed(self.lobby, self.host, self.rounds, self.seconds_per_round)
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
 class AIBot(commands.Bot):
@@ -742,7 +857,7 @@ class AIBot(commands.Bot):
 
     async def _handle_countdown(self, ctx, args=None):
         """
-        Handle the countdown/numbers command - starts a new game.
+        Handle the countdown/numbers command - opens a game lobby.
         Usage: !countdown or !numbers
         """
         server_id = str(ctx.guild.id)
@@ -750,23 +865,19 @@ class AIBot(commands.Bot):
         user_id = str(ctx.author.id)
 
         try:
-            game = self.countdown_game.create_game(server_id, channel_id, user_id)
+            # Create a lobby instead of starting game immediately
+            lobby = self.countdown_game.create_lobby(server_id, channel_id, user_id)
 
-            # Create and send game embed
-            embed = self._create_countdown_embed(game, ctx.author)
+            # Create lobby embed
+            embed = self._create_lobby_embed(lobby, ctx.author)
 
-            # Create the view with buttons
-            view = CountdownView(self)
+            # Create the settings view
+            view = CountdownSettingsView(self, lobby, ctx.author)
             message = await ctx.send(embed=embed, view=view)
 
-            # Store message ID for potential updates
-            game.message_id = str(message.id)
-            self.countdown_game._save_game(server_id, channel_id, game)
-
-            # Schedule game end
-            asyncio.create_task(
-                self._countdown_timer(ctx, server_id, channel_id, game.end_time)
-            )
+            # Store message ID
+            lobby.message_id = str(message.id)
+            self.countdown_game.update_lobby(server_id, channel_id, lobby)
 
         except ValueError as e:
             await ctx.send(f"{str(e)}")
@@ -861,67 +972,207 @@ class AIBot(commands.Bot):
             await ctx.send(f"{str(e)}", delete_after=5)
 
     async def _countdown_timer(self, ctx, server_id: str, channel_id: str, end_time: float):
-        """Background task to handle game timing."""
+        """Legacy background task - kept for compatibility."""
         import time
 
-        # Wait until end time
         wait_time = end_time - time.time()
         if wait_time > 0:
             await asyncio.sleep(wait_time)
 
-        # End the game
         try:
             game, submissions = self.countdown_game.end_game(server_id, channel_id)
+            points_earned = self.countdown_game.update_scores(server_id, submissions)
+            exact_solution_found = any(s.valid and s.distance == 0 for s in submissions)
 
-            # Update scores
+            solver_result = None
+            if not exact_solution_found:
+                best_expr, best_val = self.solver.solve(game.target, game.numbers)
+                solver_result = (best_expr, best_val)
+
+            embed = self._create_results_embed(game, submissions, solver_result, points_earned)
+            await ctx.send(embed=embed)
+
+        except ValueError:
+            pass
+
+    async def _countdown_timer_with_updates(self, interaction, server_id: str, channel_id: str,
+                                            message: discord.Message, game):
+        """Background task with live timer updates every 5 seconds."""
+        import time
+
+        while True:
+            # Get fresh game state
+            current_game = self.countdown_game.get_active_game(server_id, channel_id)
+            if not current_game or current_game.status != "active":
+                break
+
+            time_left = current_game.time_remaining()
+            if time_left <= 0:
+                break
+
+            # Update embed with current time
+            try:
+                embed = self._create_countdown_embed(current_game, interaction.user, time_left)
+                view = CountdownView(self)
+                await message.edit(embed=embed, view=view)
+            except discord.errors.NotFound:
+                break  # Message was deleted
+            except Exception:
+                pass  # Ignore rate limit errors
+
+            # Wait 5 seconds before next update
+            await asyncio.sleep(5)
+
+        # Handle round end
+        await self._handle_round_end(interaction, server_id, channel_id, message)
+
+    async def _handle_round_end(self, interaction, server_id: str, channel_id: str, message: discord.Message):
+        """Handle the end of a round."""
+        try:
+            game, submissions = self.countdown_game.end_round(server_id, channel_id)
             points_earned = self.countdown_game.update_scores(server_id, submissions)
 
             # Check if anyone found an exact solution
             exact_solution_found = any(s.valid and s.distance == 0 for s in submissions)
-            
+
             solver_result = None
             if not exact_solution_found:
-                # Run solver to show what was possible
-                # This might take a moment, but since it's background task it's fine
-                # To be safe regarding blocking, maybe run in executor if slow, but for 6 numbers it's fast.
                 best_expr, best_val = self.solver.solve(game.target, game.numbers)
                 solver_result = (best_expr, best_val)
 
-            # Create results embed
-            embed = self._create_results_embed(game, submissions, solver_result, points_earned)
-            
-            # Send results - clearing the view (buttons) from the original message would be nice but difficult 
-            # without keeping track of message object in memory securely or fetching it.
-            # We'll just send a new message.
-            await ctx.send(embed=embed)
+            if game.is_final_round():
+                # Update game scores one more time
+                for user_id, pts in points_earned.items():
+                    game.game_scores[user_id] = game.game_scores.get(user_id, 0) + pts
+
+                # Show final results
+                embed = self._create_final_results_embed(game, solver_result)
+                await message.edit(embed=embed, view=None)
+
+                # Clean up game
+                self.countdown_game._delete_game(server_id, channel_id)
+            else:
+                # Show round results
+                embed = self._create_round_results_embed(game, submissions, points_earned, solver_result)
+                await message.edit(embed=embed, view=None)
+
+                # Brief pause before next round
+                await asyncio.sleep(5)
+
+                # Advance to next round
+                next_game = self.countdown_game.advance_round(server_id, channel_id, points_earned)
+                if next_game:
+                    # Create new game embed
+                    embed = self._create_countdown_embed(next_game, interaction.user)
+                    view = CountdownView(self)
+
+                    # Send new message for new round
+                    new_message = await interaction.channel.send(embed=embed, view=view)
+                    next_game.message_id = str(new_message.id)
+                    self.countdown_game._save_game(server_id, channel_id, next_game)
+
+                    # Start new timer
+                    asyncio.create_task(
+                        self._countdown_timer_with_updates(interaction, server_id, channel_id, new_message, next_game)
+                    )
 
         except ValueError:
-            # Game was already ended or cancelled
             pass
 
-    def _create_countdown_embed(self, game, started_by) -> discord.Embed:
-        """Create the game board embed."""
+    def _create_lobby_embed(self, lobby, host, rounds=None, seconds_per_round=None) -> discord.Embed:
+        """Create the lobby settings embed."""
+        rounds = rounds or lobby.rounds
+        seconds_per_round = seconds_per_round or lobby.seconds_per_round
+
         embed = discord.Embed(
-            title=" NUMBERS GAME",
-            description="\u200b", # Empty description for cleaner look
-            color=discord.Color.dark_blue()
+            title="NUMBERS GAME LOBBY",
+            description="Configure your game and click **Start Game** when ready!",
+            color=discord.Color.blue()
         )
 
-        # Main Layout
-        # Target | Time
+        # Settings
+        embed.add_field(
+            name="Rounds",
+            value=f"**{rounds}**",
+            inline=True
+        )
+
+        embed.add_field(
+            name="Time per Round",
+            value=f"**{seconds_per_round}s**",
+            inline=True
+        )
+
+        embed.add_field(name="\u200b", value="\u200b", inline=False)  # Spacer
+
+        # Ready players
+        ready_count = len(lobby.ready_players)
+        if ready_count > 0:
+            ready_list = []
+            for player_id in lobby.ready_players:
+                if player_id == lobby.host_id:
+                    ready_list.append(f"<@{player_id}> (host)")
+                else:
+                    ready_list.append(f"<@{player_id}>")
+            ready_text = "\n".join(ready_list)
+        else:
+            ready_text = "*No players ready yet*"
+
+        embed.add_field(
+            name=f"Ready Players ({ready_count})",
+            value=ready_text,
+            inline=False
+        )
+
+        embed.set_footer(text=f"Host: {host.display_name} • Host can start anytime!")
+
+        return embed
+
+    def _create_countdown_embed(self, game, started_by, time_left=None) -> discord.Embed:
+        """Create the game board embed with live timer."""
+        # Use time_left if provided, otherwise calculate from game state
+        if time_left is None:
+            time_left = game.time_remaining()
+
+        # Round info for multi-round games
+        if game.total_rounds > 1:
+            title = f"NUMBERS GAME - Round {game.current_round}/{game.total_rounds}"
+        else:
+            title = "NUMBERS GAME"
+
+        # Color based on time remaining
+        if time_left > 20:
+            color = discord.Color.green()
+        elif time_left > 10:
+            color = discord.Color.gold()
+        else:
+            color = discord.Color.red()
+
+        embed = discord.Embed(
+            title=title,
+            description="\u200b",
+            color=color
+        )
+
+        # Target
         embed.add_field(
             name="TARGET",
             value=f"```fix\n{game.target}\n```",
             inline=True
         )
-        
+
+        # Time with progress bar
+        progress = int((time_left / game.round_duration) * 10)
+        bar = "█" * progress + "░" * (10 - progress)
+        time_display = f"**{int(time_left)}s** `{bar}`"
+
         embed.add_field(
             name="TIME LEFT",
-            value=f"**{self.countdown_game.GAME_DURATION}s**",
+            value=time_display,
             inline=True
         )
 
-        embed.add_field(name="\u200b", value="\u200b", inline=False) # Spacer
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
 
         # Numbers strip
         all_numbers = "  ".join([f"` {n} `" for n in game.numbers])
@@ -932,7 +1183,6 @@ class AIBot(commands.Bot):
         )
 
         embed.set_footer(text=f"Started by {started_by.display_name} • Click 'Play Now' to solve!")
-        # embed.timestamp = discord.utils.utcnow() # Removed to reduce height
 
         return embed
 
@@ -1030,6 +1280,126 @@ class AIBot(commands.Bot):
         embed.set_footer(
             text=f"Submissions: {valid_submissions}/{total_submissions} valid"
         )
+
+        return embed
+
+    def _create_round_results_embed(self, game, submissions: list, points_earned: dict, solver_result=None) -> discord.Embed:
+        """Create embed showing round results (for multi-round games)."""
+        winners = self.countdown_game.determine_winners(submissions)
+
+        # Determine color based on results
+        if not winners:
+            color = discord.Color.dark_grey()
+        elif winners[0].distance == 0:
+            color = discord.Color.gold()
+        else:
+            color = discord.Color.green()
+
+        embed = discord.Embed(
+            title=f"Round {game.current_round} Complete!",
+            color=color
+        )
+
+        # Challenge recap
+        embed.add_field(
+            name="Target",
+            value=f"**{game.target}**",
+            inline=True
+        )
+
+        numbers_str = " ".join(map(str, game.numbers))
+        embed.add_field(
+            name="Numbers",
+            value=numbers_str,
+            inline=True
+        )
+
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
+
+        # Round winners
+        if winners:
+            medals = ["🥇", "🥈", "🥉"]
+            for i, sub in enumerate(winners[:3]):
+                medal = medals[i] if i < 3 else f"#{i+1}"
+                user_mention = f"<@{sub.user_id}>"
+
+                if sub.distance == 0:
+                    status = "EXACT!"
+                else:
+                    status = f"{sub.distance} away"
+
+                points_str = ""
+                if sub.user_id in points_earned:
+                    points_str = f" (+{points_earned[sub.user_id]} pts)"
+
+                embed.add_field(
+                    name=f"{medal}",
+                    value=f"{user_mention}{points_str}\n`{sub.expression}` = {sub.result}\n({status})",
+                    inline=True
+                )
+        else:
+            embed.add_field(
+                name="No Winners",
+                value="No valid submissions this round!",
+                inline=False
+            )
+
+        # Solver result if no exact match
+        if solver_result:
+            expr, val = solver_result
+            if expr:
+                if val == game.target:
+                    solver_text = f"Best: `{expr}` = {val} (exact)"
+                else:
+                    solver_text = f"Best: `{expr}` = {val} ({abs(game.target - val)} away)"
+                embed.add_field(name="Solver", value=solver_text, inline=False)
+
+        # Current standings
+        if game.game_scores:
+            # Add this round's points to display current standings
+            current_scores = dict(game.game_scores)
+            for user_id, pts in points_earned.items():
+                current_scores[user_id] = current_scores.get(user_id, 0) + pts
+
+            sorted_scores = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
+            standings = " | ".join([f"<@{uid}>: {score}" for uid, score in sorted_scores[:5]])
+            embed.add_field(name="Current Standings", value=standings, inline=False)
+
+        embed.set_footer(text=f"Next round starting in 5 seconds...")
+
+        return embed
+
+    def _create_final_results_embed(self, game, solver_result=None) -> discord.Embed:
+        """Create final results embed for multi-round games."""
+        embed = discord.Embed(
+            title="GAME OVER - Final Results",
+            color=discord.Color.gold()
+        )
+
+        # Final standings
+        if game.game_scores:
+            sorted_scores = sorted(game.game_scores.items(), key=lambda x: x[1], reverse=True)
+            medals = ["🥇", "🥈", "🥉"]
+
+            standings_text = []
+            for i, (user_id, score) in enumerate(sorted_scores):
+                medal = medals[i] if i < 3 else f"#{i+1}"
+                standings_text.append(f"**{medal}** <@{user_id}>: **{score}** points")
+
+            embed.description = "\n".join(standings_text)
+        else:
+            embed.description = "No scores recorded!"
+
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
+
+        # Game stats
+        embed.add_field(
+            name="Game Stats",
+            value=f"Rounds: **{game.total_rounds}** | Time per round: **{game.round_duration}s**",
+            inline=False
+        )
+
+        embed.set_footer(text="Thanks for playing! Use !numbers to play again.")
 
         return embed
 

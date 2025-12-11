@@ -23,6 +23,29 @@ class GameStatus(Enum):
 
 
 @dataclass
+class GameLobby:
+    """Represents a game lobby waiting for players to ready up."""
+    host_id: str
+    channel_id: str
+    server_id: str
+    message_id: Optional[str] = None
+    rounds: int = 3
+    seconds_per_round: int = 60
+    ready_players: List[str] = field(default_factory=list)
+    created_at: float = field(default_factory=time.time)
+
+    def to_json(self) -> str:
+        """Serialize to JSON string."""
+        return json.dumps(asdict(self))
+
+    @classmethod
+    def from_json(cls, data: str) -> 'GameLobby':
+        """Deserialize from JSON string."""
+        parsed = json.loads(data)
+        return cls(**parsed)
+
+
+@dataclass
 class GameState:
     """Represents the state of an active Countdown game."""
     target: int
@@ -35,6 +58,11 @@ class GameState:
     channel_id: str
     started_by: str
     message_id: Optional[str] = None
+    # Multi-round support
+    current_round: int = 1
+    total_rounds: int = 1
+    round_duration: int = 60
+    game_scores: Dict[str, int] = field(default_factory=dict)
 
     def to_json(self) -> str:
         """Serialize to JSON string."""
@@ -47,12 +75,16 @@ class GameState:
         return cls(**parsed)
 
     def time_remaining(self) -> float:
-        """Get seconds remaining in the game."""
+        """Get seconds remaining in the round."""
         return max(0, self.end_time - time.time())
 
     def is_expired(self) -> bool:
-        """Check if the game timer has expired."""
+        """Check if the round timer has expired."""
         return time.time() >= self.end_time
+
+    def is_final_round(self) -> bool:
+        """Check if this is the last round."""
+        return self.current_round >= self.total_rounds
 
 
 @dataclass
@@ -131,11 +163,77 @@ class CountdownGame:
         """Generate Redis key for server leaderboard."""
         return f"countdown:leaderboard:{server_id}"
 
+    def _lobby_key(self, server_id: str, channel_id: str) -> str:
+        """Generate Redis key for lobby state."""
+        return f"countdown:lobby:{server_id}:{channel_id}"
+
+    # ==================== LOBBY METHODS ====================
+
+    def create_lobby(self, server_id: str, channel_id: str, host_id: str) -> GameLobby:
+        """Create a new game lobby."""
+        # Check if lobby or game already exists
+        existing_lobby = self.get_lobby(server_id, channel_id)
+        if existing_lobby:
+            raise ValueError("A lobby is already open in this channel!")
+
+        existing_game = self.get_active_game(server_id, channel_id)
+        if existing_game:
+            raise ValueError("A game is already active in this channel!")
+
+        lobby = GameLobby(
+            host_id=host_id,
+            channel_id=channel_id,
+            server_id=server_id,
+            ready_players=[host_id]  # Host is automatically ready
+        )
+
+        self._save_lobby(server_id, channel_id, lobby)
+        return lobby
+
+    def _save_lobby(self, server_id: str, channel_id: str, lobby: GameLobby) -> None:
+        """Save lobby state to Redis."""
+        key = self._lobby_key(server_id, channel_id)
+        self.redis.redis.set(key, lobby.to_json())
+        self.redis.redis.expire(key, 300)  # 5 minute TTL for lobby
+
+    def get_lobby(self, server_id: str, channel_id: str) -> Optional[GameLobby]:
+        """Get existing lobby for a channel."""
+        key = self._lobby_key(server_id, channel_id)
+        data = self.redis.redis.get(key)
+        if data:
+            return GameLobby.from_json(data)
+        return None
+
+    def update_lobby(self, server_id: str, channel_id: str, lobby: GameLobby) -> None:
+        """Update lobby state."""
+        self._save_lobby(server_id, channel_id, lobby)
+
+    def delete_lobby(self, server_id: str, channel_id: str) -> None:
+        """Delete lobby from Redis."""
+        key = self._lobby_key(server_id, channel_id)
+        self.redis.redis.delete(key)
+
+    def toggle_ready(self, server_id: str, channel_id: str, user_id: str) -> GameLobby:
+        """Toggle a player's ready status."""
+        lobby = self.get_lobby(server_id, channel_id)
+        if not lobby:
+            raise ValueError("No lobby found!")
+
+        if user_id in lobby.ready_players:
+            lobby.ready_players.remove(user_id)
+        else:
+            lobby.ready_players.append(user_id)
+
+        self._save_lobby(server_id, channel_id, lobby)
+        return lobby
+
     def _save_game(self, server_id: str, channel_id: str, state: GameState) -> None:
         """Save game state to Redis."""
         key = self._game_key(server_id, channel_id)
         self.redis.redis.set(key, state.to_json())
-        self.redis.redis.expire(key, 120)  # 2 minute TTL
+        # TTL based on total game duration (all rounds + buffer)
+        ttl = (state.round_duration * state.total_rounds) + 120
+        self.redis.redis.expire(key, ttl)
 
     def get_active_game(self, server_id: str, channel_id: str) -> Optional[GameState]:
         """
@@ -152,7 +250,8 @@ class CountdownGame:
                 return game
         return None
 
-    def create_game(self, server_id: str, channel_id: str, started_by: str) -> GameState:
+    def create_game(self, server_id: str, channel_id: str, started_by: str,
+                    total_rounds: int = 1, round_duration: int = 60) -> GameState:
         """
         Create a new game in a channel.
 
@@ -160,6 +259,8 @@ class CountdownGame:
             server_id: Discord server/guild ID
             channel_id: Discord channel ID
             started_by: User ID who started the game
+            total_rounds: Number of rounds to play
+            round_duration: Duration of each round in seconds
 
         Returns:
             The newly created GameState
@@ -182,15 +283,33 @@ class CountdownGame:
             large_numbers=large,
             small_numbers=small,
             start_time=now,
-            end_time=now + self.GAME_DURATION,
+            end_time=now + round_duration,
             status=GameStatus.ACTIVE.value,
             channel_id=channel_id,
-            started_by=started_by
+            started_by=started_by,
+            current_round=1,
+            total_rounds=total_rounds,
+            round_duration=round_duration,
+            game_scores={}
         )
 
         # Store in Redis
         self._save_game(server_id, channel_id, state)
         return state
+
+    def create_game_from_lobby(self, lobby: GameLobby) -> GameState:
+        """Create a game from an existing lobby."""
+        # Delete the lobby first
+        self.delete_lobby(lobby.server_id, lobby.channel_id)
+
+        # Create the game with lobby settings
+        return self.create_game(
+            server_id=lobby.server_id,
+            channel_id=lobby.channel_id,
+            started_by=lobby.host_id,
+            total_rounds=lobby.rounds,
+            round_duration=lobby.seconds_per_round
+        )
 
     def _save_submission(self, server_id: str, channel_id: str,
                          user_id: str, submission: Submission) -> None:
@@ -281,7 +400,7 @@ class CountdownGame:
 
     def end_game(self, server_id: str, channel_id: str) -> tuple:
         """
-        End the game and return results.
+        End the game completely and return results.
 
         Args:
             server_id: Discord server/guild ID
@@ -307,6 +426,71 @@ class CountdownGame:
         self._delete_submissions(server_id, channel_id)
 
         return game, submissions
+
+    def end_round(self, server_id: str, channel_id: str) -> Tuple[GameState, List[Submission]]:
+        """
+        End the current round and return results.
+        Does NOT delete the game - just collects submissions and clears them for next round.
+
+        Returns:
+            Tuple of (GameState, list of Submissions for this round)
+        """
+        game = self.get_active_game(server_id, channel_id)
+        if not game:
+            raise ValueError("No active game to end round")
+
+        submissions = self._get_all_submissions(server_id, channel_id)
+
+        # Clear submissions for next round
+        self._delete_submissions(server_id, channel_id)
+
+        return game, submissions
+
+    def advance_round(self, server_id: str, channel_id: str,
+                      round_points: Dict[str, int]) -> Optional[GameState]:
+        """
+        Advance to the next round with new numbers and target.
+        Updates cumulative game scores.
+
+        Args:
+            server_id: Discord server/guild ID
+            channel_id: Discord channel ID
+            round_points: Points earned this round {user_id: points}
+
+        Returns:
+            Updated GameState if more rounds remain, None if game is complete
+        """
+        game = self.get_active_game(server_id, channel_id)
+        if not game:
+            raise ValueError("No active game")
+
+        # Update cumulative scores
+        for user_id, points in round_points.items():
+            game.game_scores[user_id] = game.game_scores.get(user_id, 0) + points
+
+        # Check if this was the final round
+        if game.is_final_round():
+            # End the game completely
+            game.status = GameStatus.ENDED.value
+            self._delete_game(server_id, channel_id)
+            return None
+
+        # Advance to next round
+        game.current_round += 1
+        numbers, large, small = self.generate_numbers()
+        target = self.generate_target()
+        now = time.time()
+
+        game.target = target
+        game.numbers = numbers
+        game.large_numbers = large
+        game.small_numbers = small
+        game.start_time = now
+        game.end_time = now + game.round_duration
+
+        # Save updated game
+        self._save_game(server_id, channel_id, game)
+        return game
 
     def determine_winners(self, submissions: List[Submission]) -> List[Submission]:
         """
