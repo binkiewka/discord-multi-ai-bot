@@ -13,6 +13,17 @@ from enum import Enum
 from typing import Optional, List, Dict, Any, Tuple
 
 from .expression_parser import ExpressionParser
+from .solver import CountdownSolver
+
+
+@dataclass
+class RoundResult:
+    """Results from a completed round."""
+    target: int
+    numbers: List[int]
+    best_solution: Optional[str]
+    best_value: int
+    player_scores: Dict[str, int]  # User ID -> Points earned this round
 
 
 class GameStatus(Enum):
@@ -64,6 +75,7 @@ class GameState:
     total_rounds: int = 1
     round_duration: int = 60
     game_scores: Dict[str, int] = field(default_factory=dict)
+    last_round: Optional[RoundResult] = None
 
     def to_json(self) -> str:
         """Serialize to JSON string."""
@@ -73,6 +85,15 @@ class GameState:
     def from_json(cls, data: str) -> 'GameState':
         """Deserialize from JSON string."""
         parsed = json.loads(data)
+        if parsed.get('last_round'):
+            # Convert dict back to RoundResult object
+            # Note: RoundResult is a dataclass, but arguments must match
+            # if we added methods/properties it might be complex, but simple strict mapping works if fields match
+            try:
+                parsed['last_round'] = RoundResult(**parsed['last_round'])
+            except TypeError:
+                pass # Fail gracefully if schema mismatch
+                
         return cls(**parsed)
 
     def time_remaining(self) -> float:
@@ -136,6 +157,7 @@ class CountdownGame:
         """
         self.redis = redis_client
         self.parser = ExpressionParser()
+        self.solver = CountdownSolver()
 
     def generate_numbers(self) -> tuple:
         """
@@ -507,6 +529,19 @@ class CountdownGame:
         game = self.get_active_game(server_id, channel_id, auto_advance=False)
         if not game:
             raise ValueError("No active game")
+
+        # Solve for best solution
+        best_expr, best_val = self.solver.solve(game.target, game.numbers)
+        
+        # Create RoundResult
+        round_result = RoundResult(
+            target=game.target,
+            numbers=game.numbers,
+            best_solution=best_expr,
+            best_value=best_val,
+            player_scores=round_points
+        )
+        game.last_round = round_result
 
         # Update cumulative scores
         for user_id, points in round_points.items():

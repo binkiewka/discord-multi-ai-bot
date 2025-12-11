@@ -9,6 +9,13 @@ interface GameState {
   total_rounds: number;
   status?: string;
   game_scores?: Record<string, number>; // Add scores
+  last_round?: {
+    target: number;
+    numbers: number[];
+    best_solution: string | null;
+    best_value: number;
+    player_scores: Record<string, number>;
+  };
 }
 
 interface SubmitResponse {
@@ -65,7 +72,15 @@ const toastEl = document.getElementById('toast')!;
 const submitBtn = document.getElementById('btn-submit') as HTMLButtonElement;
 const startGameBtn = document.getElementById('btn-start-game') as HTMLButtonElement;
 const returnLobbyBtn = document.getElementById('btn-return-lobby') as HTMLButtonElement; // New
+const returnLobbyBtn = document.getElementById('btn-return-lobby') as HTMLButtonElement; // New
 
+// Result Elements
+const resultsOverlayEl = document.getElementById('round-results')!;
+const resTargetEl = document.getElementById('result-target')!;
+const resBestEl = document.getElementById('result-best')!;
+const resBestValEl = document.getElementById('result-best-val')!;
+const resPointsEl = document.getElementById('result-points')!;
+const btnNextRound = document.getElementById('btn-next-round')!;
 // Lobby State
 let lobbySettings = {
   rounds: 3,
@@ -223,6 +238,70 @@ function showGame(): void {
   gameContainerEl.classList.remove('hidden');
 }
 
+// Track seen rounds to avoid showing results multiple times
+let lastSeenRound = 0;
+
+function checkRoundResults(data: GameState) {
+  // If we have a last_round and we haven't shown it yet
+  // Strategy: We can track `last_round` change by comparing it with local state,
+  // OR just use current_round.
+  // However, data.current_round increments AFTER last_round is set.
+  // So if data.current_round == 2, last_round is the result of round 1.
+  // We want to show it ONCE.
+
+  if (data.last_round && data.current_round > lastSeenRound && data.current_round > 1) {
+    // A new round has started, so last_round is fresh results of the previous one
+    // Update: Actually if current_round increments, that means previous round ended.
+    // But wait, when do we update lastSeenRound?
+    // Let's assume we initialize lastSeenRound = data.current_round
+
+    // Better logic:
+    // The server sends `last_round`. We can hash it or stringify properly?
+    // Or just check if data.current_round changed.
+
+    // BUT, we want to show results OF round 1 BEFORE round 2 starts?
+    // No, the game advances immediately. So we show results OF Round 1 AT BEGINNING of Round 2.
+    // Yes.
+
+    showRoundResults(data.last_round);
+    lastSeenRound = data.current_round;
+  } else if (data.status === 'ended' && data.last_round && lastSeenRound !== -1) {
+    // Special case for game end
+    showRoundResults(data.last_round);
+    lastSeenRound = -1; // Mark as shown for end game
+  }
+}
+
+function showRoundResults(results: NonNullable<GameState['last_round']>) {
+  resTargetEl.textContent = String(results.target);
+  resBestEl.textContent = results.best_solution || "No solution";
+  resBestValEl.textContent = String(results.best_value);
+
+  const myPoints = (authenticatedUser && results.player_scores[authenticatedUser.id]) || 0;
+  resPointsEl.textContent = `+${myPoints} pts`;
+
+  resultsOverlayEl.classList.remove('hidden');
+
+  // Auto hide after 5 seconds
+  let seconds = 5;
+  btnNextRound.textContent = `NEXT ROUND (${seconds}s)`;
+
+  const interval = setInterval(() => {
+    seconds--;
+    btnNextRound.textContent = `NEXT ROUND (${seconds}s)`;
+    if (seconds <= 0) {
+      clearInterval(interval);
+      resultsOverlayEl.classList.add('hidden');
+    }
+  }, 1000);
+
+  // Allow early dismiss
+  btnNextRound.onclick = () => {
+    clearInterval(interval);
+    resultsOverlayEl.classList.add('hidden');
+  };
+}
+
 function setupLobbyListeners(): void {
   // Rounds selection
   document.getElementById('rounds-select')?.addEventListener('click', (e) => {
@@ -358,7 +437,23 @@ async function fetchGameState(): Promise<void> {
       const gameStateData = data as GameState;
 
       if (gameStateData.target !== gameState.target || gameStateData.current_round !== gameState.current_round) {
+        // logic to detect round change
+
+        // If simply jumping to next round, data.last_round should be populated
+        if (gameStateData.current_round > gameState.current_round) {
+          if (gameStateData.last_round) {
+            showRoundResults(gameStateData.last_round);
+          }
+        }
+
         initRound(gameStateData);
+      }
+
+      // Also handle final round -> Ended
+      if (data.status === 'ended' && gameState.status === 'active') {
+        if (gameStateData.last_round) {
+          showRoundResults(gameStateData.last_round);
+        }
       }
 
       gameState = gameStateData;
