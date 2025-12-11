@@ -145,6 +145,30 @@
         </div>
     </div>
 
+    <!-- Round Results Overlay -->
+    <div id="round-results" class="overlay hidden">
+        <div class="glass-panel" style="padding: 24px; gap: 16px; max-width: 320px;">
+            <h2 style="color: var(--primary);">Round Complete!</h2>
+
+            <div style="text-align: center;">
+                <p style="color: var(--text-muted); font-size: 0.9rem;">TARGET</p>
+                <h1 id="result-target" class="glow-text" style="font-size: 3rem;">---</h1>
+            </div>
+
+            <div style="text-align: center;">
+                <p style="color: var(--text-muted); font-size: 0.9rem;">BEST SOLUTION</p>
+                <p id="result-best" style="font-size: 1.2rem; font-family: monospace;">---</p>
+                <p style="color: var(--text-muted);">= <span id="result-best-val">---</span></p>
+            </div>
+
+            <div id="result-points" style="font-size: 1.5rem; color: var(--primary); font-weight: bold;">
+                +0 pts
+            </div>
+
+            <button class="btn btn-submit" id="btn-next-round">NEXT ROUND (5s)</button>
+        </div>
+    </div>
+
     <!-- Notifications -->
     <div id="toast" class="toast hidden"></div>
 
