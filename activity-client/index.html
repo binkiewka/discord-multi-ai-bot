@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Numbers Game - Discord Activity</title>
+    <link rel="stylesheet" href="/src/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Loading State -->
+        <div id="loading" class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Connecting to Discord...</p>
+        </div>
+
+        <!-- Game Container (hidden until loaded) -->
+        <div id="game-container" class="container hidden">
+            <!-- Header / Status -->
+            <header class="game-header">
+                <div class="live-indicator">
+                    <span class="blinking-dot"></span> LIVE SESSION
+                </div>
+                <div class="timer">
+                    <span id="timer-val">00s</span>
+                    <svg class="timer-ring" width="24" height="24">
+                       <circle class="timer-ring-circle" stroke="white" stroke-width="2" fill="transparent" r="8" cx="12" cy="12"/>
+                    </svg>
+                </div>
+            </header>
+
+            <!-- Round Info -->
+            <div class="round-info">
+                <span id="round-display">Round 1 of 1</span>
+            </div>
+
+            <!-- Target Big Display -->
+            <div class="target-section glass-panel">
+                <h1 id="target-number" class="glow-text">---</h1>
+                <p class="label">TARGET VALUE</p>
+            </div>
+
+            <!-- Available Numbers -->
+            <div class="numbers-section" id="numbers-container">
+                <div class="num-card skeleton"></div>
+                <div class="num-card skeleton"></div>
+                <div class="num-card skeleton"></div>
+                <div class="num-card skeleton"></div>
+                <div class="num-card skeleton"></div>
+                <div class="num-card skeleton"></div>
+            </div>
+
+            <!-- Calculation Display (Screen) -->
+            <div class="screen-section glass-panel">
+                <div class="calc-screen" id="calc-screen">
+                    <span class="placeholder">Select numbers...</span>
+                </div>
+            </div>
+
+            <!-- Calculator Keypad -->
+            <div class="keypad-section">
+                <div class="action-grid">
+                    <button class="btn btn-op" id="btn-add">+</button>
+                    <button class="btn btn-op" id="btn-sub">-</button>
+                    <button class="btn btn-op" id="btn-mul">x</button>
+                    <button class="btn btn-op" id="btn-div">/</button>
+                    <button class="btn btn-op" id="btn-lparen">(</button>
+                    <button class="btn btn-op" id="btn-rparen">)</button>
+                    <button class="btn btn-danger" id="btn-clear">CLR</button>
+                </div>
+
+                <button class="btn btn-submit" id="btn-submit">
+                    SUBMIT ANSWER
+                </button>
+            </div>
+
+            <!-- User Info -->
+            <div class="user-info">
+                <span id="user-display">Playing as: Guest</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

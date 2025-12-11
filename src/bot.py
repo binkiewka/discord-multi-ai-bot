@@ -1486,22 +1486,17 @@ class AIBot(commands.Bot):
         from aiohttp import web
         
         self.app = web.Application()
-        self.app.router.add_get('/game', self.web_handle_game_page)
-        self.app.router.add_static('/', path=os.path.join(os.path.dirname(__file__), 'web'), name='static')
-        
-        # API
+
+        # API (used by Discord Activity)
         self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
         self.app.router.add_post('/api/submit', self.web_handle_submit_api)
+        self.app.router.add_post('/api/token', self.web_handle_token_exchange)
 
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', 10010)
         await site.start()
         print("Web server started on port 10010")
-
-    async def web_handle_game_page(self, request):
-        """Serve the game HTML page."""
-        return aiohttp.web.FileResponse(os.path.join(os.path.dirname(__file__), 'web', 'index.html'))
 
     async def web_handle_game_api(self, request):
         """Return game state JSON."""
@@ -1559,6 +1554,45 @@ class AIBot(commands.Bot):
         except ValueError as e:
             return web.json_response({"success": False, "error": str(e)})
 
+    async def web_handle_token_exchange(self, request):
+        """Exchange OAuth2 authorization code for access token (for Discord Activity)."""
+        from aiohttp import web
+
+        try:
+            data = await request.json()
+            code = data.get('code')
+
+            if not code:
+                return web.json_response({'error': 'Missing authorization code'}, status=400)
+
+            client_id = os.getenv('DISCORD_CLIENT_ID')
+            client_secret = os.getenv('DISCORD_CLIENT_SECRET')
+
+            if not client_id or not client_secret:
+                return web.json_response({'error': 'OAuth2 not configured'}, status=500)
+
+            # Exchange code for token with Discord
+            token_url = 'https://discord.com/api/oauth2/token'
+            payload = {
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'grant_type': 'authorization_code',
+                'code': code,
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(token_url, data=payload) as resp:
+                    token_data = await resp.json()
+
+            if 'access_token' in token_data:
+                return web.json_response({'access_token': token_data['access_token']})
+            else:
+                error_msg = token_data.get('error_description', token_data.get('error', 'Token exchange failed'))
+                return web.json_response({'error': error_msg}, status=400)
+
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
     # Override setup_hook to start web server
     async def setup_hook(self):
         """This is called when the bot is ready to start"""
@@ -1592,19 +1626,45 @@ class CountdownView(discord.ui.View):
         pass
 
 
-    @discord.ui.button(label="🚀  Open Web Dashboard", style=discord.ButtonStyle.blurple)
-    async def open_dashboard(self, interaction: discord.Interaction, button: discord.ui.Button):
-        server_id = str(interaction.guild_id)
-        channel_id = str(interaction.channel_id)
-        user_id = str(interaction.user.id)
-        game_id = f"{server_id}_{channel_id}"
-        
-        # Get base URL from env
-        base_url = os.getenv("PUBLIC_GAME_URL", "http://localhost:10010").rstrip('/')
-        
-        url = f"{base_url}/game?id={game_id}&user={user_id}"
-        
-        await interaction.response.send_message(
-            f"Click here to play: **[Open Game Dashboard]({url})**\n*(Link contains your ID, do not share)*",
-            ephemeral=True
-        )
+    @discord.ui.button(label="🎮 Play in Discord", style=discord.ButtonStyle.success)
+    async def launch_activity(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Launch the Numbers Game as a Discord Activity in voice channel."""
+        # Check if user is in a voice channel
+        if not interaction.user.voice or not interaction.user.voice.channel:
+            await interaction.response.send_message(
+                "**Join a voice channel first!**\n"
+                "Discord Activities require you to be in a voice channel to play.",
+                ephemeral=True
+            )
+            return
+
+        # Get the application ID for Activity launch
+        app_id = os.getenv('DISCORD_CLIENT_ID') or os.getenv('DISCORD_APPLICATION_ID')
+        if not app_id:
+            await interaction.response.send_message(
+                "Activity not configured. Please contact the bot administrator.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            # Create Activity invite for the voice channel
+            voice_channel = interaction.user.voice.channel
+            invite = await voice_channel.create_invite(
+                max_age=86400,  # 24 hours
+                max_uses=0,
+                target_type=discord.InviteTarget.embedded_application,
+                target_application_id=int(app_id)
+            )
+
+            await interaction.response.send_message(
+                f"**[Click here to launch Numbers Game Activity]({invite.url})**\n"
+                f"Playing in: {voice_channel.mention}",
+                ephemeral=True
+            )
+        except discord.HTTPException as e:
+            await interaction.response.send_message(
+                f"Failed to create Activity invite: {e}",
+                ephemeral=True
+            )
+

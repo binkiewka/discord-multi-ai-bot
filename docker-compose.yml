@@ -6,7 +6,8 @@ services:
       - "10010:10010"
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - PUBLIC_GAME_URL=${PUBLIC_GAME_URL:-http://localhost:10010}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -16,6 +17,16 @@ services:
       - REDIS_PORT=6379
     depends_on:
       - redis
+    restart: unless-stopped
+
+  activity-client:
+    build:
+      context: ./activity-client
+      args:
+        - VITE_DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+    container_name: activity_client
+    ports:
+      - "10011:80"
     restart: unless-stopped
 
   redis:

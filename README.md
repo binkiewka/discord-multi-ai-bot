@@ -16,9 +16,9 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - Support for detailed image prompts
   - Automatic image delivery in Discord
 - **Games**
-  - Countdown Numbers Game - Class TV show-style math puzzle game
-  - **Web Dashboard** - Premium HTML5/JS single-page game interface
-  - 30-second competitive multiplayer rounds
+  - Countdown Numbers Game - Classic TV show-style math puzzle game
+  - **Discord Activity** - Play directly inside Discord voice channels with a modern UI
+  - Competitive multiplayer rounds with configurable time limits
   - Secure expression parser (no code injection)
 - **Channel-Specific Configuration** - Set different AI models and roles per channel (admin only)
 - **Seamless Model Switching** - Switch between AI models with automatic fallback to server-wide defaults
@@ -93,6 +93,8 @@ nano .env  # or use any text editor
 Required environment variables:
 ```env
 DISCORD_TOKEN=your_discord_token
+DISCORD_CLIENT_ID=your_application_client_id
+DISCORD_CLIENT_SECRET=your_oauth2_client_secret
 ANTHROPIC_API_KEY=your_anthropic_key
 OPENAI_API_KEY=your_openai_key
 GOOGLE_API_KEY=your_google_key
@@ -125,12 +127,36 @@ docker-compose up --build
   - Add Reactions
   - Attach Files (for image generation)
 
-6. **Web Dashboard Setup (Optional)**
-- The Numbers Game includes a modern web interface running on port `10010`.
-- To make it accessible externally:
-  1. Configure `PUBLIC_GAME_URL` in `.env` (e.g., `https://your-domain.com`)
-  2. Set up a reverse proxy (e.g., Caddy/Nginx) pointing to port `10010`.
-  - See `Caddyfile` for a Caddy proxy example.
+6. **Discord Activity Setup (Required for Numbers Game)**
+
+The Numbers Game runs as a Discord Activity embedded inside voice channels.
+
+**Discord Developer Portal Configuration:**
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications/)
+2. Select your bot application
+3. Copy **Client ID** from OAuth2 section → Add to `.env` as `DISCORD_CLIENT_ID`
+4. Generate **Client Secret** (OAuth2 > General) → Add to `.env` as `DISCORD_CLIENT_SECRET`
+5. Enable **Activities** (Activities section in sidebar) → Toggle ON
+6. Configure **URL Mappings** (Activities > URL Mappings):
+   ```
+   Prefix: /api
+   Target: your-api-domain.com (pointing to port 10010)
+   ```
+7. Set **Activity URL** to your Activity frontend domain (pointing to port 10011)
+
+**Caddy/Nginx Setup:**
+Set up reverse proxies for both services:
+```
+# Activity Frontend (port 10011)
+activity.yourdomain.com {
+    reverse_proxy localhost:10011
+}
+
+# Bot API (port 10010)
+api.yourdomain.com {
+    reverse_proxy localhost:10010
+}
+```
 
 ## Usage
 
@@ -145,10 +171,25 @@ docker-compose up --build
 
 ### Game Commands
 - `!countdown` / `!numbers` - Start a new Countdown Numbers Game
-- `!answer <expression>` / `!solve <expression>` - Submit your answer
 
 **Countdown Numbers Game:**
-A fork of the classic TV show game. The bot generates a target number (100-999) and gives you 5 numbers to work with (2 large: 25/50/75/100, and 3 small: 1-10). You have 30 seconds to create a mathematical expression using `+`, `-`, `*`, `/` and parentheses to reach the target. Each number can only be used once. Multiple players can compete - closest to target wins!
+A classic TV show-style math puzzle that runs as a **Discord Activity** inside voice channels.
+
+**How to Play:**
+1. Use `!countdown` or `!numbers` to start a game lobby
+2. Configure rounds (1-5) and time per round (30/60/120 seconds)
+3. Players click "Ready" to join
+4. Host clicks "Start Game"
+5. **Join a voice channel** and click "Play in Discord" to launch the Activity
+6. Build mathematical expressions using the available numbers to reach the target
+7. Submit your answer before time runs out!
+
+**Game Rules:**
+- Target number: 100-999
+- 6 numbers available (2 large: 25/50/75/100, 4 small: 1-10)
+- Use `+`, `-`, `×`, `÷` and parentheses
+- Each number can only be used once
+- Closest to target wins! (Exact match = 10 points, within 10 = 5 points, within 25 = 2 points)
 
 ### Admin Commands
 
@@ -211,11 +252,20 @@ discord-ai-bot/
 │   ├── games/
 │   │   ├── __init__.py
 │   │   ├── countdown.py
-│   │   └── expression_parser.py
+│   │   ├── expression_parser.py
+│   │   └── solver.py
 │   ├── utils/
 │   │   └── helpers.py
 │   ├── bot.py
 │   └── main.py
+├── activity-client/          # Discord Activity Frontend
+│   ├── src/
+│   │   ├── main.ts           # Discord SDK integration
+│   │   └── style.css         # Modern dark theme UI
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── Dockerfile
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt

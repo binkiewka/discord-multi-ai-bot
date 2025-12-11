@@ -16,6 +16,12 @@
     padding: 0;
     font-family: var(--font-family);
     user-select: none;
+    -webkit-user-select: none;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
 }
 
 body {
@@ -25,18 +31,52 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    overflow: hidden;
     background: radial-gradient(circle at 50% 0%, #1a1d2d 0%, #0f111a 100%);
 }
 
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Loading State */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid var(--glass-border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Container */
 .container {
     width: 100%;
     max-width: 480px;
-    height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 20px;
-    gap: 20px;
+    padding: 16px;
+    gap: 16px;
+    overflow-y: auto;
 }
 
 /* Header */
@@ -44,13 +84,13 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 5px;
+    padding: 8px 5px;
 }
 
 .live-indicator {
     color: var(--text-main);
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     letter-spacing: 1px;
     display: flex;
     align-items: center;
@@ -80,10 +120,19 @@ body {
     gap: 8px;
 }
 
+/* Round Info */
+.round-info {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
 /* Glass Panels */
 .glass-panel {
     background: var(--glass-bg);
     backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--glass-border);
     border-radius: 16px;
     display: flex;
@@ -95,9 +144,8 @@ body {
 
 /* Target Section */
 .target-section {
-    padding: 30px;
-    flex-grow: 1;
-    max-height: 200px;
+    padding: 24px;
+    flex-shrink: 0;
     position: relative;
     overflow: hidden;
 }
@@ -115,7 +163,7 @@ body {
 }
 
 .glow-text {
-    font-size: 4rem;
+    font-size: 3.5rem;
     font-weight: 700;
     text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
     margin-bottom: 5px;
@@ -123,7 +171,7 @@ body {
 
 .label {
     color: var(--primary);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     letter-spacing: 2px;
     font-weight: 600;
 }
@@ -132,20 +180,21 @@ body {
 .numbers-section {
     display: flex;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     padding: 0 5px;
+    flex-shrink: 0;
 }
 
 .num-card {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: 12px;
-    height: 60px;
+    height: 56px;
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.4rem;
+    font-size: 1.3rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -163,16 +212,28 @@ body {
     border-color: transparent;
 }
 
+.num-card.skeleton {
+    background: linear-gradient(90deg, var(--glass-bg) 25%, rgba(255,255,255,0.1) 50%, var(--glass-bg) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 /* Screen Section */
 .screen-section {
-    padding: 15px;
-    min-height: 70px;
+    padding: 14px;
+    min-height: 60px;
     align-items: flex-start;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 .calc-screen {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-family: monospace;
     width: 100%;
     text-align: right;
@@ -182,7 +243,7 @@ body {
 
 .placeholder {
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-family: var(--font-family);
 }
 
@@ -190,35 +251,18 @@ body {
 .keypad-section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-top: auto;
-}
-
-.keypad-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
+    margin-top: auto;
+    flex-shrink: 0;
 }
-
-/* Reusing num-card styles for injected dynamic buttons if needed, currently numbers are separate */
 
 .action-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr); /* +, -, *, / */
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
-    margin-top: 5px;
 }
 
-.action-grid button:nth-child(5), /* ( */
-.action-grid button:nth-child(6), /* ) */
-.action-grid button:nth-child(7) { /* CLR */
-    grid-column: span 1; /* Keep simple or span? */
-}
-/* Re-doing action grid for better layout: 4 cols */
-.action-grid {
-    grid-template-columns: repeat(4, 1fr);
-}
-.action-grid button:nth-child(7) { /* CLR */
+.action-grid button:nth-child(7) {
     grid-column: span 2;
     background-color: rgba(237, 66, 69, 0.2);
     color: var(--danger);
@@ -227,16 +271,17 @@ body {
 .btn {
     border: none;
     border-radius: 12px;
-    height: 50px;
-    font-size: 1.2rem;
-    background: rgba(255, 255, 255, 0.08); /* Secondary default */
+    height: 48px;
+    font-size: 1.15rem;
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-main);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, transform 0.1s;
 }
 
 .btn:active {
     background: rgba(255, 255, 255, 0.15);
+    transform: scale(0.97);
 }
 
 .btn-op {
@@ -249,8 +294,8 @@ body {
     background: var(--success);
     color: #000;
     font-weight: 700;
-    font-size: 1.1rem;
-    margin-top: 10px;
+    font-size: 1.05rem;
+    margin-top: 8px;
     box-shadow: 0 4px 15px rgba(87, 242, 135, 0.3);
 }
 
@@ -259,36 +304,93 @@ body {
     transform: scale(0.98);
 }
 
+.btn-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* User Info */
+.user-info {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    padding: 8px 0;
+    flex-shrink: 0;
+}
+
 /* Toast */
 .toast {
     position: fixed;
     bottom: 30px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.85);
     padding: 12px 24px;
     border-radius: 20px;
     font-size: 0.9rem;
     backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
     transition: opacity 0.3s;
     pointer-events: none;
     text-align: center;
     width: max-content;
+    max-width: 90%;
+    z-index: 1000;
 }
 
 .toast.hidden {
     opacity: 0;
 }
-.toast.success { border: 1px solid var(--success); color: var(--success); }
-.toast.error { border: 1px solid var(--danger); color: var(--danger); }
 
-/* Injected Number Buttons */
-.btn-num-kp {
-    background: rgba(255, 255, 255, 0.1);
-    font-weight: 600;
+.toast.success {
+    border: 1px solid var(--success);
+    color: var(--success);
 }
-.btn-num-kp.used {
-    background: transparent;
+
+.toast.error {
+    border: 1px solid var(--danger);
+    color: var(--danger);
+}
+
+/* Error State */
+.error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    padding: 20px;
+}
+
+.error-container h2 {
+    color: var(--danger);
+}
+
+.error-container p {
     color: var(--text-muted);
-    border: 1px dashed var(--glass-border);
+}
+
+/* Mobile optimizations */
+@media (max-height: 700px) {
+    .container {
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .target-section {
+        padding: 16px;
+    }
+
+    .glow-text {
+        font-size: 2.8rem;
+    }
+
+    .num-card {
+        height: 48px;
+        font-size: 1.1rem;
+    }
+
+    .btn {
+        height: 44px;
+    }
 }
