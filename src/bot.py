@@ -448,9 +448,8 @@ class AIBot(commands.Bot):
             await self._launch_game(interaction)
             return
 
-        # For other interactions, let the tree handle it?
-        # Standard on_interaction calls tree.process_interaction
-        await self.tree.on_interaction(interaction)
+        # For other interactions, let the bot handle it
+        await super().on_interaction(interaction)
 
 
     async def has_permissions(self, ctx) -> bool:
@@ -1627,6 +1626,9 @@ class AIBot(commands.Bot):
         self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
         self.app.router.add_post('/api/submit', self.web_handle_submit_api)
         self.app.router.add_post('/api/token', self.web_handle_token_exchange)
+        self.app.router.add_post('/token', self.web_handle_token_exchange) # Alias for root access if needed
+        self.app.router.add_get('/', self.web_handle_root) # Handle root for health checks
+        self.app.router.add_head('/', self.web_handle_root) # Handle HEAD requests
 
         runner = web.AppRunner(self.app)
         await runner.setup()
@@ -1729,7 +1731,10 @@ class AIBot(commands.Bot):
         except Exception as e:
             return web.json_response({'error': str(e)}, status=500)
 
-
+    async def web_handle_root(self, request):
+        """Handle root health checks."""
+        from aiohttp import web
+        return web.Response(text="Discord Activity Bot API is running")
 
 class CountdownView(discord.ui.View):
     def __init__(self, bot, server_id, channel_id, base_url="http://localhost:10010"):
