@@ -355,6 +355,21 @@ class AIBot(commands.Bot):
         }
         print("AIBot initialization complete.", flush=True)
 
+    async def setup_hook(self):
+        """This is called when the bot is ready to start"""
+        self._setup_hook_ran = True
+        print("Executing setup_hook...", flush=True)
+        self.add_commands()
+        self._setup_slash_commands()
+        
+        # Custom sync to handle Type 4 Entry Point command
+        print("Calling custom_sync from setup_hook...", flush=True)
+        await self.custom_sync()
+        
+        # Start web server for Activity API
+        print("Starting web server task from setup_hook...", flush=True)
+        self.bg_task = asyncio.create_task(self.start_web_server())
+
     async def on_ready(self):
         print(f"Logged in as {self.user} (ID: {self.user.id})", flush=True)
         print("------", flush=True)
