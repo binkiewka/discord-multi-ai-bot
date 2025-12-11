@@ -30,7 +30,7 @@ class AnthropicClient:
             })
 
             response = await self.client.messages.create(
-                model="claude-3-5-sonnet-latest",
+                model="claude-haiku-4-5",
                 system=system_prompt,
                 messages=messages,
                 max_tokens=2048,
