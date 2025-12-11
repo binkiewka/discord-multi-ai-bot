@@ -1720,11 +1720,13 @@ class AIBot(commands.Bot):
             async with aiohttp.ClientSession() as session:
                 async with session.post(token_url, data=payload) as resp:
                     token_data = await resp.json()
+                    print(f"Token exchange response: {resp.status} {token_data}", flush=True)
 
             if 'access_token' in token_data:
                 return web.json_response({'access_token': token_data['access_token']})
             else:
                 error_msg = token_data.get('error_description', token_data.get('error', 'Token exchange failed'))
+                print(f"Token exchange failed: {error_msg}", flush=True)
                 return web.json_response({'error': error_msg}, status=400)
 
         except Exception as e:

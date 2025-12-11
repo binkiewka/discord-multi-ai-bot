@@ -91,7 +91,8 @@ async function initializeDiscordSDK(): Promise<void> {
     });
 
     if (!tokenResponse.ok) {
-      throw new Error('Failed to exchange token');
+      const errorData = await tokenResponse.json().catch(() => ({}));
+      throw new Error(errorData.error || `Token exchange failed: ${tokenResponse.status}`);
     }
 
     const { access_token } = await tokenResponse.json();
