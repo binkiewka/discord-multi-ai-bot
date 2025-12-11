@@ -1,5 +1,5 @@
 import discord
-print(">>> BOT.PY VERSION: 2024-12-11-v3 <<<", flush=True)
+print(">>> BOT.PY VERSION: 2024-12-11-v4-AUTO-CREATE <<<", flush=True)
 from discord.ext import commands
 from typing import Optional
 import asyncio
@@ -1644,6 +1644,7 @@ class AIBot(commands.Bot):
         """Return game state JSON."""
         from aiohttp import web
         game_id = request.match_info['game_id']
+        print(f"API Request for Game ID: {game_id}", flush=True)
         # We need to find the game. We stored message_id in game, we can use that as ID?
         # Or key? The user passes ?id=CHANNEL_ID for now, assuming one game per channel.
         # Actually in link we can pass server_id and channel_id.
