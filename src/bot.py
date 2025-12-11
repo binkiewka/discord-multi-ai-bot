@@ -1649,25 +1649,40 @@ class AIBot(commands.Bot):
         from aiohttp import web
         game_id = request.match_info['game_id']
         print(f"API Request for Game ID: {game_id}", flush=True)
-        # We need to find the game. We stored message_id in game, we can use that as ID?
-        # Or key? The user passes ?id=CHANNEL_ID for now, assuming one game per channel.
-        # Actually in link we can pass server_id and channel_id.
-        # Let's use Query params in the link, but here ID is in path? 
         
-        # Auto-create game if it doesn't exist (supports direct activity launches)
-        if game_id not in self.games:
-            print(f"Game {game_id} not found, auto-creating new instance", flush=True)
-            self.games[game_id] = CountdownGame(game_id)
+        try:
+            if "_" not in game_id:
+                return web.json_response({"error": "Invalid game ID format"}, status=400)
+                
+            server_id, channel_id = game_id.split("_")
             
-        game = self.games[game_id]
-        
-        return web.json_response({
-            'target': game.target,
-            'numbers': game.numbers,
-            'endTime': game.end_time,
-            'round': game.round,
-            'totalRounds': game.TOTAL_ROUNDS
-        })
+            # Use the manager to get the game
+            game = self.countdown_game.get_active_game(server_id, channel_id)
+            
+            if not game:
+                print(f"Game {game_id} not found, auto-creating new instance via API...", flush=True)
+                # Auto-create a default game
+                try:
+                    # We don't have a user ID here easily, so use specific placeholder
+                    game = self.countdown_game.create_game(
+                        server_id=server_id, 
+                        channel_id=channel_id, 
+                        started_by="activity_auto_start"
+                    )
+                except ValueError as e:
+                    # Race condition or other error
+                    print(f"Failed to auto-create game: {e}", flush=True)
+                    return web.json_response({"error": str(e)}, status=500)
+
+            # Return the game state as JSON
+            # GameState.to_json() returns a string, so we parse it back to dict or send as text
+            return web.json_response(text=game.to_json())
+            
+        except Exception as e:
+            print(f"Error handling request: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return web.json_response({"error": str(e)}, status=500)
 
     async def web_handle_submit_api(self, request):
         """Handle submission from web."""
