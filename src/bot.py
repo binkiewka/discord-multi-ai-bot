@@ -252,7 +252,7 @@ class CountdownSettingsView(discord.ui.View):
 
         # Create game embed
         embed = self.bot._create_countdown_embed(game, interaction.user)
-        view = CountdownView(self.bot)
+        view = CountdownView(self.bot, server_id, channel_id)
 
         # Update the message with game board
         await interaction.response.edit_message(embed=embed, view=view)
@@ -999,9 +999,10 @@ class AIBot(commands.Bot):
                 break
 
             # Update embed with current time
+            # Update embed with current time
             try:
                 embed = self._create_countdown_embed(current_game, interaction.user, time_left)
-                view = CountdownView(self)
+                view = CountdownView(self, server_id, channel_id)
                 await message.edit(embed=embed, view=view)
             except discord.errors.NotFound:
                 break  # Message was deleted
@@ -1052,7 +1053,7 @@ class AIBot(commands.Bot):
                 if next_game:
                     # Create new game embed
                     embed = self._create_countdown_embed(next_game, interaction.user)
-                    view = CountdownView(self)
+                    view = CountdownView(self, server_id, channel_id)
 
                     # Send new message for new round
                     new_message = await interaction.channel.send(embed=embed, view=view)
