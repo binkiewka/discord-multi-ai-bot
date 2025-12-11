@@ -26,6 +26,11 @@ async def main():
         bot = AIBot(config)
         print("Starting bot...", flush=True)
         print(f"Token present: {bool(config.discord_token)}", flush=True)
+        
+        # Manually run setup_hook since it seems to be skipped
+        print("Manually calling setup_hook...", flush=True)
+        await bot.setup_hook()
+        
         await bot.start(config.discord_token)
         print("Bot start returned (unexpected)", flush=True)
     except Exception as e:
