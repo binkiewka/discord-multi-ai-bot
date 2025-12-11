@@ -1617,23 +1617,29 @@ class AIBot(commands.Bot):
     # ==================== WEB SERVER ====================
     async def start_web_server(self):
         """Start the aiohttp web server for the game dashboard."""
-        from aiohttp import web
-        
-        self.app = web.Application()
+        print("Initializing web server...", flush=True)
+        try:
+            from aiohttp import web
+            
+            self.app = web.Application()
 
-        # API (used by Discord Activity)
-        self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
-        self.app.router.add_post('/api/submit', self.web_handle_submit_api)
-        self.app.router.add_post('/api/token', self.web_handle_token_exchange)
-        self.app.router.add_post('/token', self.web_handle_token_exchange) # Alias for root access if needed
-        self.app.router.add_get('/', self.web_handle_root) # Handle root for health checks
-        self.app.router.add_head('/', self.web_handle_root) # Handle HEAD requests
+            # API (used by Discord Activity)
+            self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
+            self.app.router.add_post('/api/submit', self.web_handle_submit_api)
+            self.app.router.add_post('/api/token', self.web_handle_token_exchange)
+            self.app.router.add_post('/token', self.web_handle_token_exchange) # Alias for root access if needed
+            self.app.router.add_get('/', self.web_handle_root) # Handle root for health checks
+            self.app.router.add_head('/', self.web_handle_root) # Handle HEAD requests
 
-        runner = web.AppRunner(self.app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', 10010)
-        await site.start()
-        print("Web server started on port 10010")
+            runner = web.AppRunner(self.app)
+            await runner.setup()
+            site = web.TCPSite(runner, '0.0.0.0', 10010)
+            await site.start()
+            print("Web server started on port 10010", flush=True)
+        except Exception as e:
+            print(f"CRITICAL: Failed to start web server: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
 
     async def web_handle_game_api(self, request):
         """Return game state JSON."""
