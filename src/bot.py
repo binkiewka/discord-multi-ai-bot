@@ -153,30 +153,7 @@ class ActionButton(discord.ui.Button):
             except ValueError as e:
                 await interaction.response.send_message(str(e), ephemeral=True)
 
-class CountdownView(discord.ui.View):
-    def __init__(self, bot):
-        super().__init__(timeout=None)
-        self.bot = bot
 
-    @discord.ui.button(label="🎮  Play Now / Open Calculator", style=discord.ButtonStyle.success)
-    async def play_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        server_id = str(interaction.guild_id)
-        channel_id = str(interaction.channel_id)
-
-        game = self.bot.countdown_game.get_active_game(server_id, channel_id)
-        if not game:
-            await interaction.response.send_message("Game has ended!", ephemeral=True)
-            return
-
-        # Create ephemeral unified calculator for this user
-        view = CalculatorView(self.bot, game, interaction.user.id)
-        embed = self.bot._create_calculator_embed(game, "")
-        
-        await interaction.response.send_message(
-            embed=embed,
-            view=view,
-            ephemeral=True
-        )
 
 
 class RoundsSelect(discord.ui.Select):
@@ -1036,7 +1013,7 @@ class AIBot(commands.Bot):
 
         try:
             # Get game to access target
-            game = self.countdown_game.get_active_game(server_id, channel_id)
+            game = self.countdown_game.get_active_game(server_id, channel_id, auto_advance=False)
             if not game:
                 await ctx.send("No active game in this channel! Start one with `!countdown`", delete_after=5)
                 return
@@ -1116,38 +1093,56 @@ class AIBot(commands.Bot):
                                             message: discord.Message, game):
         """Background task with live timer updates every 5 seconds."""
         import time
+        print(f"DEBUG: Timer started for game {server_id}/{channel_id}", flush=True)
 
-        while True:
-            # Get fresh game state
-            current_game = self.countdown_game.get_active_game(server_id, channel_id, auto_advance=False)
-            if not current_game or current_game.status != "active":
-                break
+        try:
+            while True:
+                # Get fresh game state
+                current_game = self.countdown_game.get_active_game(server_id, channel_id, auto_advance=False)
+                if not current_game:
+                    print(f"DEBUG: Game not found or ended for {server_id}/{channel_id}", flush=True)
+                    break
+                if current_game.status != "active":
+                    print(f"DEBUG: Game status is {current_game.status} for {server_id}/{channel_id}", flush=True)
+                    break
 
-            time_left = current_game.time_remaining()
-            if time_left <= 0:
-                break
+                time_left = current_game.time_remaining()
+                # print(f"DEBUG: Time left: {time_left}", flush=True) # trace logging
 
-            # Update embed with current time
-            # Update embed with current time
-            try:
-                embed = self._create_countdown_embed(current_game, interaction.user, time_left)
-                view = CountdownView(self, server_id, channel_id)
-                await message.edit(embed=embed, view=view)
-            except discord.errors.NotFound:
-                break  # Message was deleted
-            except Exception:
-                pass  # Ignore rate limit errors
+                if time_left <= 0:
+                    print(f"DEBUG: Time expired for {server_id}/{channel_id}. Handling round end...", flush=True)
+                    break
 
-            # Wait 5 seconds before next update
-            await asyncio.sleep(5)
+                # Update embed with current time
+                try:
+                    embed = self._create_countdown_embed(current_game, interaction.user, time_left)
+                    view = CountdownView(self, server_id, channel_id)
+                    await message.edit(embed=embed, view=view)
+                except discord.errors.NotFound:
+                    print(f"DEBUG: Message deleted for {server_id}/{channel_id}", flush=True)
+                    break  # Message was deleted
+                except Exception as e:
+                    print(f"DEBUG: Error updating message: {e}", flush=True)
+                    pass  # Ignore rate limit errors
 
-        # Handle round end
-        await self._handle_round_end(interaction, server_id, channel_id, message)
+                # Wait 5 seconds before next update
+                await asyncio.sleep(5)
+
+            # Handle round end
+            print(f"DEBUG: Exiting timer loop, calling _handle_round_end", flush=True)
+            await self._handle_round_end(interaction, server_id, channel_id, message)
+        
+        except Exception as e:
+            print(f"DEBUG: CRITICAL ERROR IN TIMER LOOP: {e}", flush=True)
+            traceback.print_exc()
 
     async def _handle_round_end(self, interaction, server_id: str, channel_id: str, message: discord.Message):
         """Handle the end of a round."""
+        print(f"DEBUG: Entering _handle_round_end", flush=True)
         try:
+            print(f"DEBUG: Calling end_round", flush=True)
             game, submissions = self.countdown_game.end_round(server_id, channel_id)
+            print(f"DEBUG: Processing scores for {len(submissions)} submissions", flush=True)
             points_earned = self.countdown_game.update_scores(server_id, submissions)
 
             # Check if anyone found an exact solution
@@ -1155,10 +1150,13 @@ class AIBot(commands.Bot):
 
             solver_result = None
             if not exact_solution_found:
+                print(f"DEBUG: Solving for best solution...", flush=True)
                 best_expr, best_val = self.solver.solve(game.target, game.numbers)
                 solver_result = (best_expr, best_val)
+                print(f"DEBUG: Solver found: {best_expr} = {best_val}", flush=True)
 
             if game.is_final_round():
+                print(f"DEBUG: Final round detected.", flush=True)
                 # Update game scores one more time
                 for user_id, pts in points_earned.items():
                     game.game_scores[user_id] = game.game_scores.get(user_id, 0) + pts
@@ -1170,6 +1168,7 @@ class AIBot(commands.Bot):
                 # Clean up game
                 self.countdown_game._delete_game(server_id, channel_id)
             else:
+                print(f"DEBUG: Intermediate round ending. Advancing...", flush=True)
                 # Show round results
                 embed = self._create_round_results_embed(game, submissions, points_earned, solver_result)
                 await message.edit(embed=embed, view=None)
@@ -1178,8 +1177,10 @@ class AIBot(commands.Bot):
                 await asyncio.sleep(5)
 
                 # Advance to next round
+                print(f"DEBUG: Calling advance_round...", flush=True)
                 next_game = self.countdown_game.advance_round(server_id, channel_id, points_earned)
                 if next_game:
+                    print(f"DEBUG: Game advanced to round {next_game.current_round}", flush=True)
                     # Create new game embed
                     embed = self._create_countdown_embed(next_game, interaction.user)
                     view = CountdownView(self, server_id, channel_id)
@@ -1193,9 +1194,15 @@ class AIBot(commands.Bot):
                     asyncio.create_task(
                         self._countdown_timer_with_updates(interaction, server_id, channel_id, new_message, next_game)
                     )
+                else:
+                    print(f"DEBUG: advance_round returned None!", flush=True)
 
-        except ValueError:
+        except ValueError as e:
+            print(f"DEBUG: ValueError in _handle_round_end: {e}", flush=True)
             pass
+        except Exception as e:
+            print(f"DEBUG: UNEXPECTED ERROR in _handle_round_end: {e}", flush=True)
+            traceback.print_exc()
 
     def _create_lobby_embed(self, lobby, host, rounds=None, seconds_per_round=None) -> discord.Embed:
         """Create the lobby settings embed with modern design."""
@@ -1585,6 +1592,8 @@ class AIBot(commands.Bot):
 
     async def on_message(self, message: discord.Message):
         """Called when a message is received"""
+        # print(f"DEBUG: Message received from {message.author}: {message.content[:20]}...", flush=True)
+
         # Process commands
         await self.process_commands(message)
 
@@ -1596,15 +1605,19 @@ class AIBot(commands.Bot):
         if self.user not in message.mentions:
             return
 
+        print(f"DEBUG: Bot mentioned by {message.author}. content={message.content}", flush=True)
+
         # Remove the mention from the message
         content = message.content.replace(f'<@{self.user.id}>', '').strip()
 
+        print(f"DEBUG: Requesting AI response for: {content}", flush=True)
         response = await self.get_ai_response(
             str(message.guild.id),
             str(message.channel.id),
             str(message.author.id),
             content
         )
+        print(f"DEBUG: AI Response received: {bool(response)}", flush=True)
 
         if response:
             await send_chunked_message(message.channel, response, reference=message)
