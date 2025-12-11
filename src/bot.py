@@ -352,9 +352,24 @@ class AIBot(commands.Bot):
             'solve': self._handle_answer,  # alias
             'leaderboard': self._handle_leaderboard
         }
+        print("AIBot initialization complete.", flush=True)
+
+    async def on_ready(self):
+        print(f"Logged in as {self.user} (ID: {self.user.id})", flush=True)
+        print("------", flush=True)
+        # Fallback sync if setup_hook didn't run for some reason
+        # Note: This is less ideal than setup_hook but works for debugging
+        if not hasattr(self, '_setup_hook_ran'):
+             print("Warning: setup_hook did not run! Syncing tree from on_ready...", flush=True)
+             try:
+                 await self.tree.sync()
+                 print("Command tree synced from on_ready.", flush=True)
+             except Exception as e:
+                 print(f"Failed to sync tree from on_ready: {e}", flush=True)
 
     async def setup_hook(self):
         """This is called when the bot is ready to start"""
+        self._setup_hook_ran = True
         print("Executing setup_hook...", flush=True)
         self.add_commands()
         self._setup_slash_commands()
