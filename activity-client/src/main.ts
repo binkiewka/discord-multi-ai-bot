@@ -143,9 +143,9 @@ async function initializeDiscordSDK(): Promise<void> {
 
 // Initialize game UI and polling
 function initializeGame(): void {
-  // Hide loading, show game
-  loadingEl.classList.add('hidden');
-  gameContainerEl.classList.remove('hidden');
+  // Keep loading visible until we fetch state
+  // loadingEl.classList.add('hidden');
+  // gameContainerEl.classList.remove('hidden');
 
   // Update user display
   if (authenticatedUser) {
@@ -164,6 +164,8 @@ function initializeGame(): void {
 }
 
 function showLobby(): void {
+  loadingEl.classList.remove('hidden'); // Temporarily show loading if needed, or just hide others?
+  // Actually we want to show lobby and hide loading.
   loadingEl.classList.add('hidden');
   gameContainerEl.classList.add('hidden');
   leaderboardEl.classList.add('hidden');
@@ -328,7 +330,10 @@ async function fetchGameState(): Promise<void> {
       }
 
       // If active game, show game UI
-      if (lobbyEl.classList.contains('hidden') === false || leaderboardEl.classList.contains('hidden') === false) {
+      if (lobbyEl.classList.contains('hidden') === false || leaderboardEl.classList.contains('hidden') === false || !gameContainerEl.classList.contains('hidden')) {
+        showGame();
+      } else {
+        // Initial load
         showGame();
       }
 
