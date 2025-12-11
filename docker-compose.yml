@@ -2,6 +2,8 @@ services:
   bot:
     build: .
     container_name: ai_bot
+    ports:
+      - "10010:10010"
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

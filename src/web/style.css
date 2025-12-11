@@ -1,0 +1,294 @@
+:root {
+    --bg-color: #0f111a;
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --primary: #5865F2;
+    --success: #57F287;
+    --danger: #ED4245;
+    --text-main: #ffffff;
+    --text-muted: #949BA4;
+    --font-family: 'Outfit', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-family);
+    user-select: none;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 0%, #1a1d2d 0%, #0f111a 100%);
+}
+
+.container {
+    width: 100%;
+    max-width: 480px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 20px;
+}
+
+/* Header */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 5px;
+}
+
+.live-indicator {
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.blinking-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #ff0055;
+    border-radius: 50%;
+    animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+.timer {
+    color: var(--success);
+    font-family: monospace;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Glass Panels */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+/* Target Section */
+.target-section {
+    padding: 30px;
+    flex-grow: 1;
+    max-height: 200px;
+    position: relative;
+    overflow: hidden;
+}
+
+.target-section::before {
+    content: '';
+    position: absolute;
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, rgba(88, 101, 242, 0.2) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.glow-text {
+    font-size: 4rem;
+    font-weight: 700;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    margin-bottom: 5px;
+}
+
+.label {
+    color: var(--primary);
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    font-weight: 600;
+}
+
+/* Numbers Section */
+.numbers-section {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 5px;
+}
+
+.num-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    height: 60px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.num-card:active {
+    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.num-card.used {
+    opacity: 0.3;
+    pointer-events: none;
+    background: transparent;
+    border-color: transparent;
+}
+
+/* Screen Section */
+.screen-section {
+    padding: 15px;
+    min-height: 70px;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.calc-screen {
+    font-size: 1.5rem;
+    font-family: monospace;
+    width: 100%;
+    text-align: right;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.placeholder {
+    color: var(--text-muted);
+    font-size: 1rem;
+    font-family: var(--font-family);
+}
+
+/* Keypad Section */
+.keypad-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+/* Reusing num-card styles for injected dynamic buttons if needed, currently numbers are separate */
+
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* +, -, *, / */
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.action-grid button:nth-child(5), /* ( */
+.action-grid button:nth-child(6), /* ) */
+.action-grid button:nth-child(7) { /* CLR */
+    grid-column: span 1; /* Keep simple or span? */
+}
+/* Re-doing action grid for better layout: 4 cols */
+.action-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+.action-grid button:nth-child(7) { /* CLR */
+    grid-column: span 2;
+    background-color: rgba(237, 66, 69, 0.2);
+    color: var(--danger);
+}
+
+.btn {
+    border: none;
+    border-radius: 12px;
+    height: 50px;
+    font-size: 1.2rem;
+    background: rgba(255, 255, 255, 0.08); /* Secondary default */
+    color: var(--text-main);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn:active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-op {
+    background: rgba(88, 101, 242, 0.2);
+    color: #8faaff;
+}
+
+.btn-submit {
+    width: 100%;
+    background: var(--success);
+    color: #000;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-top: 10px;
+    box-shadow: 0 4px 15px rgba(87, 242, 135, 0.3);
+}
+
+.btn-submit:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+}
+
+/* Toast */
+.toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    padding: 12px 24px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    backdrop-filter: blur(5px);
+    transition: opacity 0.3s;
+    pointer-events: none;
+    text-align: center;
+    width: max-content;
+}
+
+.toast.hidden {
+    opacity: 0;
+}
+.toast.success { border: 1px solid var(--success); color: var(--success); }
+.toast.error { border: 1px solid var(--danger); color: var(--danger); }
+
+/* Injected Number Buttons */
+.btn-num-kp {
+    background: rgba(255, 255, 255, 0.1);
+    font-weight: 600;
+}
+.btn-num-kp.used {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px dashed var(--glass-border);
+}

@@ -15,6 +15,7 @@ from games.countdown import CountdownGame
 from games.solver import CountdownSolver
 from utils.helpers import send_chunked_message
 import io
+import aiohttp
 
 
 class CalculatorView(discord.ui.View):
@@ -1477,3 +1478,140 @@ class AIBot(commands.Bot):
 
         if response:
             await send_chunked_message(message.channel, response, reference=message)
+
+    # ==================== WEB SERVER ====================
+    async def start_web_server(self):
+        """Start the aiohttp web server for the game dashboard."""
+        from aiohttp import web
+        
+        self.app = web.Application()
+        self.app.router.add_get('/game', self.web_handle_game_page)
+        self.app.router.add_static('/', path=os.path.join(os.path.dirname(__file__), 'web'), name='static')
+        
+        # API
+        self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
+        self.app.router.add_post('/api/submit', self.web_handle_submit_api)
+
+        runner = web.AppRunner(self.app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', 10010)
+        await site.start()
+        print("Web server started on port 10010")
+
+    async def web_handle_game_page(self, request):
+        """Serve the game HTML page."""
+        return aiohttp.web.FileResponse(os.path.join(os.path.dirname(__file__), 'web', 'index.html'))
+
+    async def web_handle_game_api(self, request):
+        """Return game state JSON."""
+        from aiohttp import web
+        game_id = request.match_info['game_id']
+        # We need to find the game. We stored message_id in game, we can use that as ID?
+        # Or key? The user passes ?id=CHANNEL_ID for now, assuming one game per channel.
+        # Actually in link we can pass server_id and channel_id.
+        # Let's use Query params in the link, but here ID is in path? 
+        # Let's expect game_id to be "SERVER_CHANNEL" format
+        
+        if "_" not in game_id:
+             return web.json_response({"error": "Invalid ID"}, status=400)
+             
+        server_id, channel_id = game_id.split("_")
+        game = self.countdown_game.get_active_game(server_id, channel_id)
+        
+        if not game:
+            return web.json_response({"error": "Game not found"}, status=404)
+            
+        return web.json_response({
+            "target": game.target,
+            "numbers": game.numbers,
+            "endTime": game.end_time,
+            "round": game.current_round,
+            "totalRounds": game.total_rounds
+        })
+
+    async def web_handle_submit_api(self, request):
+        """Handle submission from web."""
+        from aiohttp import web
+        data = await request.json()
+        game_id = data.get('game_id')
+        user_id = data.get('user_id')
+        expression = data.get('expression')
+        
+        if not game_id or not user_id or not expression:
+             return web.json_response({"success": False, "error": "Missing data"}, status=400)
+
+        server_id, channel_id = game_id.split("_")
+        
+        try:
+            submission = self.countdown_game.submit_answer(server_id, channel_id, user_id, expression)
+            if submission.valid:
+                return web.json_response({
+                    "success": True,
+                    "result": submission.result,
+                    "distance": submission.distance
+                })
+            else:
+                return web.json_response({
+                    "success": False,
+                    "error": submission.error
+                })
+        except ValueError as e:
+            return web.json_response({"success": False, "error": str(e)})
+
+    # Override setup_hook to start web server
+    async def setup_hook(self):
+        """This is called when the bot is ready to start"""
+        self.add_commands()
+        self.bg_task = self.loop.create_task(self.start_web_server())
+
+class CountdownView(discord.ui.View):
+    def __init__(self, bot, server_id, channel_id, base_url="http://localhost:10010"):
+        super().__init__(timeout=None)
+        self.bot = bot
+        
+        # Determine the public URL (should be configured, but using host IP request)
+        # We will use the base_url passed in, or default.
+        # Ideally this comes from config, but for now we hardcode/guess.
+        # Actually, let's just use a relative path if we were in browser, but we are in Discord.
+        # We need the user to set PUBLIC_URL. For now we use the requested port.
+        
+        game_id = f"{server_id}_{channel_id}"
+        
+        # Link Button!
+        # Note: We need to know who the user is for the link?
+        # No, the user will have to input it or we just use their session?
+        # Actually easier: we can't easily pass user_id securely without auth.
+        # BUT for a simple game, we can pass `?user=USER_ID` in the link. 
+        # It's spoofable but low stakes.
+        
+        # We can't generate dynamic links properly in a persistent view unless we make it ephemeral per user.
+        # But this is a persistent view on the board.
+        # So we can keep "Play Now" as a button that GENERATES the ephemeral link!
+        
+        pass
+
+    @discord.ui.button(label="🎮  Play on Dashboard", style=discord.ButtonStyle.link, url="http://localhost:10010/game") # Placeholder
+    async def dashboard_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # This callback never fires for Link buttons.
+        pass
+        
+    # We need a button that generates the link because we need the USER ID.
+    @discord.ui.button(label="🚀  Open Web Dashboard", style=discord.ButtonStyle.blurple)
+    async def open_dashboard(self, interaction: discord.Interaction, button: discord.ui.Button):
+        server_id = str(interaction.guild_id)
+        channel_id = str(interaction.channel_id)
+        user_id = str(interaction.user.id)
+        game_id = f"{server_id}_{channel_id}"
+        
+        # Construct URL
+        # TODO: Get public host from config
+        host = "localhost" # User said "I will open it", implies they know the IP. 
+        # But for the link to work for them, they need the IP.
+        # I'll enable a config var for valid URL.
+        
+        url = f"http://{host}:10010/game?id={game_id}&user={user_id}"
+        
+        await interaction.response.send_message(
+            f"Click here to play: **[Open Game Dashboard]({url})**\n*(Link contains your ID, do not share)*",
+            ephemeral=True
+        )
