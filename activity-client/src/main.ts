@@ -1,4 +1,4 @@
-import { DiscordSDK, patchUrlMappings } from '@discord/embedded-app-sdk';
+import { DiscordSDK } from '@discord/embedded-app-sdk';
 
 // Types
 interface GameState {
@@ -68,11 +68,6 @@ async function initializeDiscordSDK(): Promise<void> {
 
   try {
     discordSdk = new DiscordSDK(CLIENT_ID);
-
-    // Patch URL mappings for API calls through Discord's proxy
-    patchUrlMappings([
-      { prefix: '/api', target: 'API_TARGET_PLACEHOLDER' }, // Will be replaced in production
-    ]);
 
     // Wait for Discord client to be ready
     await discordSdk.ready();
