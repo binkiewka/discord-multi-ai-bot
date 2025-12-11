@@ -72,7 +72,6 @@ const toastEl = document.getElementById('toast')!;
 const submitBtn = document.getElementById('btn-submit') as HTMLButtonElement;
 const startGameBtn = document.getElementById('btn-start-game') as HTMLButtonElement;
 const returnLobbyBtn = document.getElementById('btn-return-lobby') as HTMLButtonElement; // New
-const returnLobbyBtn = document.getElementById('btn-return-lobby') as HTMLButtonElement; // New
 
 // Result Elements
 const resultsOverlayEl = document.getElementById('round-results')!;
@@ -238,39 +237,7 @@ function showGame(): void {
   gameContainerEl.classList.remove('hidden');
 }
 
-// Track seen rounds to avoid showing results multiple times
-let lastSeenRound = 0;
 
-function checkRoundResults(data: GameState) {
-  // If we have a last_round and we haven't shown it yet
-  // Strategy: We can track `last_round` change by comparing it with local state,
-  // OR just use current_round.
-  // However, data.current_round increments AFTER last_round is set.
-  // So if data.current_round == 2, last_round is the result of round 1.
-  // We want to show it ONCE.
-
-  if (data.last_round && data.current_round > lastSeenRound && data.current_round > 1) {
-    // A new round has started, so last_round is fresh results of the previous one
-    // Update: Actually if current_round increments, that means previous round ended.
-    // But wait, when do we update lastSeenRound?
-    // Let's assume we initialize lastSeenRound = data.current_round
-
-    // Better logic:
-    // The server sends `last_round`. We can hash it or stringify properly?
-    // Or just check if data.current_round changed.
-
-    // BUT, we want to show results OF round 1 BEFORE round 2 starts?
-    // No, the game advances immediately. So we show results OF Round 1 AT BEGINNING of Round 2.
-    // Yes.
-
-    showRoundResults(data.last_round);
-    lastSeenRound = data.current_round;
-  } else if (data.status === 'ended' && data.last_round && lastSeenRound !== -1) {
-    // Special case for game end
-    showRoundResults(data.last_round);
-    lastSeenRound = -1; // Mark as shown for end game
-  }
-}
 
 function showRoundResults(results: NonNullable<GameState['last_round']>) {
   resTargetEl.textContent = String(results.target);
