@@ -25,52 +25,45 @@ class CalculatorView(discord.ui.View):
         self.user_id = user_id
         self.expression = ""
         self.used_indices = set()
-        
+
         # Add buttons
         self._init_buttons()
 
     def _init_buttons(self):
         self.clear_items()
-        
-        # Row 0: Large Numbers (2 nums)
-        # We need to know which are large/small but we only have game.numbers list.
-        # However, we know typically first 2 are large in standard game, or we can just assume 
-        # the list order is preserved from generation (large + small).
-        # Let's just put first 2 in Row 0, and next 4 in Row 1.
-        
-        for i, num in enumerate(self.game.numbers[:2]):
-            disabled = i in self.used_indices
-            self.add_item(NumberButton(num, i, disabled, row=0))
-            
-        # Row 1: Small Numbers (4 nums)
-        for i, num in enumerate(self.game.numbers[2:]):
-            idx = i + 2
-            disabled = idx in self.used_indices
-            self.add_item(NumberButton(num, idx, disabled, row=1))
 
-        # Row 2: Basic Operators + Open Paren
-        ops_row2 = ["+", "-", "*", "/", "("]
-        for op in ops_row2:
-            self.add_item(OperatorButton(op, row=2))
+        # Row 0: All numbers in one row (up to 5)
+        for i, num in enumerate(self.game.numbers):
+            used = i in self.used_indices
+            self.add_item(NumberButton(num, i, used, row=0))
 
-        # Row 3: Close Paren, Controls, Submit
-        self.add_item(OperatorButton(")", row=3))
-        self.add_item(ActionButton("⌫", "backspace", discord.ButtonStyle.danger, row=3))
-        self.add_item(ActionButton("CLR", "clear", discord.ButtonStyle.danger, row=3))
-        self.add_item(ActionButton("SUBMIT", "submit", discord.ButtonStyle.success, row=3))
+        # Row 1: Operators with modern symbols
+        operators = [("+", "+"), ("−", "-"), ("×", "*"), ("÷", "/")]
+        for label, op in operators:
+            self.add_item(OperatorButton(label, op, row=1))
+
+        # Row 2: Parentheses and controls
+        self.add_item(OperatorButton("(", "(", row=2))
+        self.add_item(OperatorButton(")", ")", row=2))
+        self.add_item(ActionButton("CLR", "clear", discord.ButtonStyle.secondary, row=2))
+
+        # Row 3: Submit button (prominent)
+        self.add_item(ActionButton("✓  SUBMIT", "submit", discord.ButtonStyle.success, row=3))
 
     async def update_view(self, interaction: discord.Interaction):
         self._init_buttons()
-        # Ensure screen is always visible
-        content = f"```fix\n{self.expression if self.expression else ' '}\n```"
+        # Modern expression display
+        expr_display = self.expression if self.expression else "..."
+        content = f"**Your expression:**\n```\n{expr_display}\n```"
         await interaction.response.edit_message(content=content, view=self)
 
 class NumberButton(discord.ui.Button):
-    def __init__(self, number, index, disabled=False, row=0):
+    def __init__(self, number, index, used=False, row=0):
+        # Used numbers show as disabled with different style
         super().__init__(
-            label=str(number), 
-            style=discord.ButtonStyle.secondary, 
-            disabled=disabled, 
+            label=str(number),
+            style=discord.ButtonStyle.danger if used else discord.ButtonStyle.secondary,
+            disabled=used,
             row=row
         )
         self.number = number
@@ -79,27 +72,29 @@ class NumberButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         view: CalculatorView = self.view
         if interaction.user.id != int(view.user_id):
-            return await interaction.response.send_message("This isn't your game!", ephemeral=True)
-            
+            return await interaction.response.send_message("This isn't your calculator!", ephemeral=True)
+
         view.expression += str(self.number)
         view.used_indices.add(self.index)
         await view.update_view(interaction)
 
+
 class OperatorButton(discord.ui.Button):
-    def __init__(self, operator, row=0):
+    def __init__(self, label, operator, row=0):
         super().__init__(
-            label=operator, 
-            style=discord.ButtonStyle.primary, 
+            label=label,
+            style=discord.ButtonStyle.primary,
             row=row
         )
         self.operator = operator
+        self.display_label = label
 
     async def callback(self, interaction: discord.Interaction):
         view: CalculatorView = self.view
         if interaction.user.id != int(view.user_id):
-            return await interaction.response.send_message("This isn't your game!", ephemeral=True)
-            
-        # Add spacing for readability, except parentheses sometimes
+            return await interaction.response.send_message("This isn't your calculator!", ephemeral=True)
+
+        # Add spacing for readability, except parentheses
         if self.operator in "()":
             view.expression += self.operator
         else:
@@ -114,55 +109,46 @@ class ActionButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         view: CalculatorView = self.view
         if interaction.user.id != int(view.user_id):
-            return await interaction.response.send_message("This isn't your game!", ephemeral=True)
+            return await interaction.response.send_message("This isn't your calculator!", ephemeral=True)
 
         if self.action == "clear":
             view.expression = ""
             view.used_indices.clear()
             await view.update_view(interaction)
-            
-        elif self.action == "backspace":
-            # Simple backspace logic is tricky with tokens. 
-            # We'll just reset for now or try to strip last char/token.
-            # For robustness in this MVP, let's just clear. 
-            # Or implementing a token stack would be better but complex.
-            # Let's try simple string manipulation.
-            if view.expression:
-                view.expression = view.expression[:-1].strip()
-                # Re-validating used indices is hard without parsing. 
-                # So we simply Clear if they want to undo for safety.
-                view.expression = ""
-                view.used_indices.clear()
-            await view.update_view(interaction)
-            
+
         elif self.action == "submit":
-            # Logic similar to original submit
             server_id = str(interaction.guild_id)
             channel_id = str(interaction.channel_id)
             user_id = str(interaction.user.id)
-            
+
             try:
                 submission = view.bot.countdown_game.submit_answer(
                     server_id, channel_id, user_id, view.expression
                 )
-                
+
                 if submission.valid:
                     if submission.distance == 0:
-                        response = f"🎯 **EXACT MATCH!** `{view.expression}` = {submission.result}"
-                        color = discord.Color.gold()
+                        # Perfect match - celebratory embed
+                        embed = discord.Embed(
+                            title="🎯  EXACT MATCH!",
+                            description=f"```{view.expression} = {submission.result}```",
+                            color=0xF1C40F  # Gold
+                        )
                     else:
-                        response = f"✅ **Submitted:** `{view.expression}` = {submission.result} ({submission.distance} away)"
-                        color = discord.Color.green()
-                    
-                    # Send to main channel
-                    embed = discord.Embed(description=response, color=color)
+                        # Good submission
+                        embed = discord.Embed(
+                            title="✅  Answer Submitted",
+                            description=f"```{view.expression} = {submission.result}```\n**{submission.distance}** away from target",
+                            color=0x57F287  # Green
+                        )
+
                     embed.set_footer(text=f"Submitted by {interaction.user.display_name}")
                     await interaction.channel.send(embed=embed)
-                    await interaction.response.edit_message(content="Submitted!", view=None)
+                    await interaction.response.edit_message(content="✅ **Submitted!**", view=None)
 
                 else:
                     await interaction.response.send_message(f"❌ **Invalid:** {submission.error}", ephemeral=True)
-                    
+
             except ValueError as e:
                 await interaction.response.send_message(str(e), ephemeral=True)
 
@@ -1083,196 +1069,184 @@ class AIBot(commands.Bot):
             pass
 
     def _create_lobby_embed(self, lobby, host, rounds=None, seconds_per_round=None) -> discord.Embed:
-        """Create the lobby settings embed."""
+        """Create the lobby settings embed with modern design."""
         rounds = rounds or lobby.rounds
         seconds_per_round = seconds_per_round or lobby.seconds_per_round
 
-        embed = discord.Embed(
-            title="NUMBERS GAME LOBBY",
-            description="Configure your game and click **Start Game** when ready!",
-            color=discord.Color.blue()
-        )
+        # Settings box
+        settings_text = f"""```
+╭───────────────────────╮
+│  Rounds: {rounds:<13} │
+│  Time:   {seconds_per_round}s per round  │
+╰───────────────────────╯
+```"""
 
-        # Settings
-        embed.add_field(
-            name="Rounds",
-            value=f"**{rounds}**",
-            inline=True
-        )
-
-        embed.add_field(
-            name="Time per Round",
-            value=f"**{seconds_per_round}s**",
-            inline=True
-        )
-
-        embed.add_field(name="\u200b", value="\u200b", inline=False)  # Spacer
-
-        # Ready players
+        # Ready players list
         ready_count = len(lobby.ready_players)
         if ready_count > 0:
             ready_list = []
             for player_id in lobby.ready_players:
                 if player_id == lobby.host_id:
-                    ready_list.append(f"<@{player_id}> (host)")
+                    ready_list.append(f"✅  <@{player_id}> *(host)*")
                 else:
-                    ready_list.append(f"<@{player_id}>")
+                    ready_list.append(f"✅  <@{player_id}>")
             ready_text = "\n".join(ready_list)
         else:
-            ready_text = "*No players ready yet*"
+            ready_text = "*Waiting for players...*"
+
+        embed = discord.Embed(
+            title="🎮  NUMBERS GAME",
+            description="━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            color=0x5865F2  # Discord blurple
+        )
 
         embed.add_field(
-            name=f"Ready Players ({ready_count})",
+            name="⚙️  SETTINGS",
+            value=settings_text,
+            inline=False
+        )
+
+        embed.add_field(
+            name=f"👥  PLAYERS READY ({ready_count})",
             value=ready_text,
             inline=False
         )
 
-        embed.set_footer(text=f"Host: {host.display_name} • Host can start anytime!")
+        embed.set_footer(text=f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎮 Host: {host.display_name}  •  Press Start when ready!")
 
         return embed
 
     def _create_countdown_embed(self, game, started_by, time_left=None) -> discord.Embed:
-        """Create the game board embed with live timer."""
+        """Create the game board embed with modern design."""
         # Use time_left if provided, otherwise calculate from game state
         if time_left is None:
             time_left = game.time_remaining()
 
-        # Round info for multi-round games
+        # Title with live indicator
         if game.total_rounds > 1:
-            title = f"NUMBERS GAME - Round {game.current_round}/{game.total_rounds}"
+            title = f"🔴 LIVE  •  Round {game.current_round}/{game.total_rounds}"
         else:
-            title = "NUMBERS GAME"
+            title = "🔴 LIVE SESSION"
 
-        # Color based on time remaining
+        # Color based on time remaining (Discord native colors)
         if time_left > 20:
-            color = discord.Color.green()
+            color = 0x57F287  # Discord green
         elif time_left > 10:
-            color = discord.Color.gold()
+            color = 0xFEE75C  # Discord yellow
         else:
-            color = discord.Color.red()
+            color = 0xED4245  # Discord red
+
+        # Timer with modern progress bar
+        progress = int((time_left / game.round_duration) * 10)
+        bar = "▰" * progress + "▱" * (10 - progress)
+        timer_display = f"⏱️ **{int(time_left)}s**  `{bar}`"
+
+        # Large target display
+        target_box = f"""```
+╔═══════════════════════════════╗
+║                               ║
+║           {game.target:^5}             ║
+║                               ║
+║        TARGET  VALUE          ║
+╚═══════════════════════════════╝
+```"""
+
+        # Numbers as tiles
+        number_tiles = "   ".join([f"` {n:^3} `" for n in game.numbers])
 
         embed = discord.Embed(
             title=title,
-            description="\u200b",
+            description=target_box,
             color=color
         )
 
-        # Target
         embed.add_field(
-            name="TARGET",
-            value=f"```fix\n{game.target}\n```",
-            inline=True
-        )
-
-        # Time with progress bar
-        progress = int((time_left / game.round_duration) * 10)
-        bar = "█" * progress + "░" * (10 - progress)
-        time_display = f"**{int(time_left)}s** `{bar}`"
-
-        embed.add_field(
-            name="TIME LEFT",
-            value=time_display,
-            inline=True
-        )
-
-        embed.add_field(name="\u200b", value="\u200b", inline=False)
-
-        # Numbers strip
-        all_numbers = "  ".join([f"` {n} `" for n in game.numbers])
-        embed.add_field(
-            name="AVAILABLE NUMBERS",
-            value=f"**{all_numbers}**",
+            name=timer_display,
+            value="\u200b",
             inline=False
         )
 
-        embed.set_footer(text=f"Started by {started_by.display_name} • Click 'Play Now' to solve!")
+        embed.add_field(
+            name="🔢  NUMBERS",
+            value=number_tiles,
+            inline=False
+        )
+
+        embed.set_footer(text=f"🎮 Click 'Play Now' to solve!  •  Started by {started_by.display_name}")
 
         return embed
 
     def _create_results_embed(self, game, submissions: list, solver_result=None, points_earned=None) -> discord.Embed:
-        """Create the game results embed."""
+        """Create the game results embed with modern design."""
         winners = self.countdown_game.determine_winners(submissions)
         points_earned = points_earned or {}
 
         # Determine embed color and title based on results
         if not winners:
-            color = discord.Color.dark_grey()
-            title = "GAME OVER - No Valid Solutions!"
+            color = 0x99AAB5  # Gray
+            title = "🏁  GAME OVER"
         elif winners[0].distance == 0:
-            color = discord.Color.gold()
-            title = "GAME OVER - PERFECT SOLUTION!"
+            color = 0xF1C40F  # Gold
+            title = "🏆  PERFECT SOLUTION!"
         else:
-            color = discord.Color.green()
-            title = "GAME OVER - Results"
+            color = 0x57F287  # Green
+            title = "🏁  GAME OVER"
 
-        embed = discord.Embed(title=title, color=color)
+        # Challenge info
+        numbers_str = "  ".join([f"`{n}`" for n in game.numbers])
+        challenge_info = f"🎯 Target: **{game.target}**\n🔢 Numbers: {numbers_str}"
 
-        # Recap the challenge
-        embed.add_field(
-            name="Target Was",
-            value=f"**{game.target}**",
-            inline=True
+        embed = discord.Embed(
+            title=title,
+            description=f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n{challenge_info}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            color=color
         )
-
-        numbers_str = " ".join(map(str, game.numbers))
-        embed.add_field(
-            name="Numbers Were",
-            value=numbers_str,
-            inline=True
-        )
-
-        embed.add_field(name="\u200b", value="\u200b", inline=False)  # Spacer
 
         if winners:
-            # Podium display
-            medals = ["", "", ""]
+            medals = ["🥇", "🥈", "🥉"]
+            results_text = []
 
             for i, sub in enumerate(winners[:3]):
-                medal = medals[i] if i < 3 else ""
+                medal = medals[i] if i < 3 else f"#{i+1}"
                 user_mention = f"<@{sub.user_id}>"
 
                 if sub.distance == 0:
-                    status = "EXACT!"
+                    status = "**EXACT!**"
                 else:
-                    status = f"{sub.distance} away"
-                
+                    status = f"*{sub.distance} away*"
+
                 points_str = ""
                 if sub.user_id in points_earned:
-                    points_str = f" (+{points_earned[sub.user_id]} pts)"
+                    points_str = f"  `+{points_earned[sub.user_id]} pts`"
 
-                embed.add_field(
-                    name=f"{medal} #{i+1}",
-                    value=f"{user_mention}{points_str}\n`{sub.expression}` = {sub.result}\n({status})",
-                    inline=True
-                )
+                results_text.append(f"{medal} {user_mention} • **{sub.result}** {status}{points_str}")
+                results_text.append(f"   └ `{sub.expression}`")
 
-            # If more than 3 participants, show count
+            embed.add_field(
+                name="🏆  RESULTS",
+                value="\n".join(results_text),
+                inline=False
+            )
+
             if len(winners) > 3:
                 embed.add_field(
-                    name="Other Participants",
-                    value=f"{len(winners) - 3} others submitted valid answers.",
+                    name="\u200b",
+                    value=f"*+{len(winners) - 3} more participants*",
                     inline=False
                 )
 
         if solver_result:
             expr, val = solver_result
             if expr:
-                embed.add_field(name="\u200b", value="\u200b", inline=False)
-                val_str = f"{val}"
                 if val == game.target:
-                    title_str = "Best Possible Solution (Exact)"
+                    solver_text = f"💡 `{expr}` = {val} *(exact)*"
                 else:
-                    title_str = f"Best Possible Solution ({abs(game.target - val)} away)"
-                
-                embed.add_field(
-                    name=title_str,
-                    value=f"```fix\n{expr} = {val}\n```",
-                    inline=False
-                )
-        else:
+                    solver_text = f"💡 `{expr}` = {val} *({abs(game.target - val)} away)*"
+                embed.add_field(name="Best Possible", value=solver_text, inline=False)
+        elif not winners:
             embed.add_field(
-                name="No Winners",
-                value="Nobody submitted a valid solution!",
+                name="🏆  RESULTS",
+                value="*No valid submissions*",
                 inline=False
             )
 
@@ -1280,70 +1254,62 @@ class AIBot(commands.Bot):
         total_submissions = len(submissions)
         valid_submissions = len([s for s in submissions if s.valid])
 
-        embed.set_footer(
-            text=f"Submissions: {valid_submissions}/{total_submissions} valid"
-        )
+        embed.set_footer(text=f"📊 {valid_submissions}/{total_submissions} valid submissions  •  Type !numbers to play again 🎮")
 
         return embed
 
     def _create_round_results_embed(self, game, submissions: list, points_earned: dict, solver_result=None) -> discord.Embed:
-        """Create embed showing round results (for multi-round games)."""
+        """Create embed showing round results with modern design."""
         winners = self.countdown_game.determine_winners(submissions)
 
         # Determine color based on results
         if not winners:
-            color = discord.Color.dark_grey()
+            color = 0x99AAB5  # Gray
         elif winners[0].distance == 0:
-            color = discord.Color.gold()
+            color = 0xF1C40F  # Gold
         else:
-            color = discord.Color.green()
+            color = 0x57F287  # Green
+
+        # Challenge info
+        numbers_str = "  ".join([f"`{n}`" for n in game.numbers])
+        challenge_info = f"🎯 Target: **{game.target}**\n🔢 Numbers: {numbers_str}"
 
         embed = discord.Embed(
-            title=f"Round {game.current_round} Complete!",
+            title=f"🏁  ROUND {game.current_round} COMPLETE",
+            description=f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n{challenge_info}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             color=color
         )
 
-        # Challenge recap
-        embed.add_field(
-            name="Target",
-            value=f"**{game.target}**",
-            inline=True
-        )
-
-        numbers_str = " ".join(map(str, game.numbers))
-        embed.add_field(
-            name="Numbers",
-            value=numbers_str,
-            inline=True
-        )
-
-        embed.add_field(name="\u200b", value="\u200b", inline=False)
-
-        # Round winners
+        # Round winners with better formatting
         if winners:
             medals = ["🥇", "🥈", "🥉"]
+            results_text = []
+
             for i, sub in enumerate(winners[:3]):
                 medal = medals[i] if i < 3 else f"#{i+1}"
                 user_mention = f"<@{sub.user_id}>"
 
                 if sub.distance == 0:
-                    status = "EXACT!"
+                    status = "**EXACT!**"
                 else:
-                    status = f"{sub.distance} away"
+                    status = f"*{sub.distance} away*"
 
                 points_str = ""
                 if sub.user_id in points_earned:
-                    points_str = f" (+{points_earned[sub.user_id]} pts)"
+                    points_str = f"  `+{points_earned[sub.user_id]} pts`"
 
-                embed.add_field(
-                    name=f"{medal}",
-                    value=f"{user_mention}{points_str}\n`{sub.expression}` = {sub.result}\n({status})",
-                    inline=True
-                )
+                results_text.append(f"{medal} {user_mention} • **{sub.result}** {status}{points_str}")
+                results_text.append(f"   └ `{sub.expression}`")
+
+            embed.add_field(
+                name="🏆  RESULTS",
+                value="\n".join(results_text),
+                inline=False
+            )
         else:
             embed.add_field(
-                name="No Winners",
-                value="No valid submissions this round!",
+                name="🏆  RESULTS",
+                value="*No valid submissions this round*",
                 inline=False
             )
 
@@ -1352,31 +1318,32 @@ class AIBot(commands.Bot):
             expr, val = solver_result
             if expr:
                 if val == game.target:
-                    solver_text = f"Best: `{expr}` = {val} (exact)"
+                    solver_text = f"💡 `{expr}` = {val} *(exact)*"
                 else:
-                    solver_text = f"Best: `{expr}` = {val} ({abs(game.target - val)} away)"
-                embed.add_field(name="Solver", value=solver_text, inline=False)
+                    solver_text = f"💡 `{expr}` = {val} *({abs(game.target - val)} away)*"
+                embed.add_field(name="Best Possible", value=solver_text, inline=False)
 
         # Current standings
-        if game.game_scores:
-            # Add this round's points to display current standings
+        if game.game_scores or points_earned:
             current_scores = dict(game.game_scores)
             for user_id, pts in points_earned.items():
                 current_scores[user_id] = current_scores.get(user_id, 0) + pts
 
-            sorted_scores = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
-            standings = " | ".join([f"<@{uid}>: {score}" for uid, score in sorted_scores[:5]])
-            embed.add_field(name="Current Standings", value=standings, inline=False)
+            if current_scores:
+                sorted_scores = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
+                standings = "  │  ".join([f"<@{uid}>: **{score}**" for uid, score in sorted_scores[:5]])
+                embed.add_field(name="📊  STANDINGS", value=standings, inline=False)
 
-        embed.set_footer(text=f"Next round starting in 5 seconds...")
+        embed.set_footer(text="⏳ Next round starting in 5 seconds...")
 
         return embed
 
     def _create_final_results_embed(self, game, solver_result=None) -> discord.Embed:
-        """Create final results embed for multi-round games."""
+        """Create final results embed with modern celebratory design."""
         embed = discord.Embed(
-            title="GAME OVER - Final Results",
-            color=discord.Color.gold()
+            title="🏆  GAME OVER",
+            description="━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            color=0xF1C40F  # Gold
         )
 
         # Final standings
@@ -1386,23 +1353,29 @@ class AIBot(commands.Bot):
 
             standings_text = []
             for i, (user_id, score) in enumerate(sorted_scores):
-                medal = medals[i] if i < 3 else f"#{i+1}"
-                standings_text.append(f"**{medal}** <@{user_id}>: **{score}** points")
+                medal = medals[i] if i < 3 else f"**#{i+1}**"
+                standings_text.append(f"{medal}  <@{user_id}>  —  **{score} points**")
 
-            embed.description = "\n".join(standings_text)
+            embed.add_field(
+                name="🎖️  FINAL STANDINGS",
+                value="\n".join(standings_text),
+                inline=False
+            )
         else:
-            embed.description = "No scores recorded!"
-
-        embed.add_field(name="\u200b", value="\u200b", inline=False)
+            embed.add_field(
+                name="🎖️  FINAL STANDINGS",
+                value="*No scores recorded*",
+                inline=False
+            )
 
         # Game stats
         embed.add_field(
-            name="Game Stats",
-            value=f"Rounds: **{game.total_rounds}** | Time per round: **{game.round_duration}s**",
+            name="━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            value=f"📊  **{game.total_rounds}** rounds  •  **{game.round_duration}s** each",
             inline=False
         )
 
-        embed.set_footer(text="Thanks for playing! Use !numbers to play again.")
+        embed.set_footer(text="Thanks for playing!  •  Type !numbers to play again 🎮")
 
         return embed
 
