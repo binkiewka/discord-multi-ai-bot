@@ -412,8 +412,8 @@ class AIBot(commands.Bot):
 
     def _setup_slash_commands(self):
         """Register slash commands"""
-        @self.tree.command(name="numbers", description="Start a game of Countdown/Numbers")
-        async def numbers(interaction: discord.Interaction):
+        @self.tree.command(name="launch", description="Start a game of Countdown/Numbers")
+        async def launch(interaction: discord.Interaction):
             # Re-use the existing logic, but adapted for interaction
             server_id = str(interaction.guild_id)
             channel_id = str(interaction.channel_id)
