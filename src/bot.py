@@ -300,6 +300,7 @@ class AIBot(commands.Bot):
         intents.guild_messages = True  # Needed for messages in guilds
 
         super().__init__(command_prefix="!", intents=intents)
+        print("Initializing AIBot...", flush=True)
         self.config = config
         self.redis_client = RedisClient(config.redis_host, config.redis_port)
         self.owner_id = int(config.owner_id)
@@ -354,11 +355,15 @@ class AIBot(commands.Bot):
 
     async def setup_hook(self):
         """This is called when the bot is ready to start"""
+        print("Executing setup_hook...", flush=True)
         self.add_commands()
         self._setup_slash_commands()
-        print("Syncing command tree...")
-        await self.tree.sync()
-        print("Command tree synced.")
+        try:
+            print("Syncing command tree...", flush=True)
+            synced = await self.tree.sync()
+            print(f"Command tree synced. {len(synced)} commands registered.", flush=True)
+        except Exception as e:
+            print(f"Failed to sync command tree: {e}", flush=True)
 
     async def has_permissions(self, ctx) -> bool:
         """Check if user has required permissions (admin, moderator, or bot owner)"""
