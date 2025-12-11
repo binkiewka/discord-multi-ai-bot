@@ -6,6 +6,7 @@ services:
       - "10010:10010"
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - PUBLIC_GAME_URL=${PUBLIC_GAME_URL:-http://localhost:10010}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}

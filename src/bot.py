@@ -1599,13 +1599,10 @@ class CountdownView(discord.ui.View):
         user_id = str(interaction.user.id)
         game_id = f"{server_id}_{channel_id}"
         
-        # Construct URL
-        # TODO: Get public host from config
-        host = "localhost" # User said "I will open it", implies they know the IP. 
-        # But for the link to work for them, they need the IP.
-        # I'll enable a config var for valid URL.
+        # Get base URL from env
+        base_url = os.getenv("PUBLIC_GAME_URL", "http://localhost:10010").rstrip('/')
         
-        url = f"http://{host}:10010/game?id={game_id}&user={user_id}"
+        url = f"{base_url}/game?id={game_id}&user={user_id}"
         
         await interaction.response.send_message(
             f"Click here to play: **[Open Game Dashboard]({url})**\n*(Link contains your ID, do not share)*",
