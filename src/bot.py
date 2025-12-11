@@ -282,7 +282,7 @@ class CountdownSettingsView(discord.ui.View):
             self.bot._countdown_timer_with_updates(interaction, server_id, channel_id, message, game)
         )
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, emoji="✕", row=2)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, emoji="❌", row=2)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Only host can cancel
         if str(interaction.user.id) != self.lobby.host_id:
@@ -881,6 +881,9 @@ class AIBot(commands.Bot):
 
         except ValueError as e:
             await ctx.send(f"{str(e)}")
+        except Exception as e:
+            print(f"Error in _handle_countdown: {type(e).__name__}: {e}")
+            await ctx.send(f"An error occurred: {str(e)}")
 
     async def _handle_leaderboard(self, ctx):
         """Show the server leaderboard."""
