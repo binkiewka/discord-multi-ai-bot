@@ -1,4 +1,5 @@
 import discord
+print(">>> BOT.PY VERSION: 2024-12-11-v3 <<<", flush=True)
 from discord.ext import commands
 from typing import Optional
 import asyncio
