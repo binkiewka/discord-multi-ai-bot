@@ -1616,11 +1616,12 @@ class AIBot(commands.Bot):
             self.app = web.Application()
 
             # API (used by Discord Activity)
-            self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
-            self.app.router.add_get('/game/{game_id}', self.web_handle_game_api) # Alias
-            
+            # Define specific routes first to avoid dynamic pattern matching grabbing them
             self.app.router.add_post('/api/game/create', self.web_handle_create_game)
             self.app.router.add_post('/game/create', self.web_handle_create_game) # Alias
+
+            self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
+            self.app.router.add_get('/game/{game_id}', self.web_handle_game_api) # Alias
             
             self.app.router.add_post('/api/submit', self.web_handle_submit_api)
             self.app.router.add_post('/submit', self.web_handle_submit_api) # Alias
