@@ -247,7 +247,7 @@ async function fetchGameState(): Promise<void> {
   if (!gameId) return;
 
   try {
-    const response = await fetch(`/.proxy / api / game / ${gameId} `);
+    const response = await fetch(`/.proxy/api/game/${gameId}`);
 
     if (!response.ok) {
       if (response.status === 404) {
