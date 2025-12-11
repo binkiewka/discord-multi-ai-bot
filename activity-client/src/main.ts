@@ -4,9 +4,10 @@ import { DiscordSDK } from '@discord/embedded-app-sdk';
 interface GameState {
   target: number;
   numbers: number[];
-  endTime: number;
-  round: number;
-  totalRounds: number;
+  end_time: number;
+  current_round: number;
+  total_rounds: number;
+  status?: string;
 }
 
 interface SubmitResponse {
@@ -36,9 +37,9 @@ let gameId: string = '';
 let gameState: GameState = {
   target: 0,
   numbers: [],
-  endTime: 0,
-  round: 1,
-  totalRounds: 1,
+  end_time: 0,
+  current_round: 1,
+  total_rounds: 1,
 };
 let currentExpression = '';
 let usedIndices = new Set<number>();
@@ -100,7 +101,7 @@ async function initializeDiscordSDK(): Promise<void> {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json().catch(() => ({}));
-      throw new Error(errorData.error || `Token exchange failed: ${tokenResponse.status}`);
+      throw new Error(errorData.error || `Token exchange failed: ${tokenResponse.status} `);
     }
 
     const { access_token } = await tokenResponse.json();
@@ -120,7 +121,7 @@ async function initializeDiscordSDK(): Promise<void> {
     const channelId = discordSdk.channelId;
 
     if (guildId && channelId) {
-      gameId = `${guildId}_${channelId}`;
+      gameId = `${guildId}_${channelId} `;
     } else {
       // Fallback for DMs or other contexts
       gameId = channelId || 'unknown';
@@ -132,7 +133,7 @@ async function initializeDiscordSDK(): Promise<void> {
     console.error('Discord SDK initialization failed:', error);
     // Show actual error message to help debugging
     const errorMessage = error instanceof Error ? error.message : String(error);
-    showError(`Failed to connect: ${errorMessage}`);
+    showError(`Failed to connect: ${errorMessage} `);
   }
 }
 
@@ -145,7 +146,7 @@ function initializeGame(): void {
   // Update user display
   if (authenticatedUser) {
     const displayName = authenticatedUser.global_name || authenticatedUser.username;
-    userDisplayEl.textContent = `Playing as: ${displayName}`;
+    userDisplayEl.textContent = `Playing as: ${displayName} `;
   }
 
   // Set up button event listeners
@@ -246,7 +247,7 @@ async function fetchGameState(): Promise<void> {
   if (!gameId) return;
 
   try {
-    const response = await fetch(`/.proxy/api/game/${gameId}`);
+    const response = await fetch(`/.proxy / api / game / ${gameId} `);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -274,8 +275,7 @@ async function fetchGameState(): Promise<void> {
 
       const gameStateData = data as GameState;
 
-      // If state changed (new round), reset
-      if (gameStateData.target !== gameState.target || gameStateData.round !== gameState.round) {
+      if (gameStateData.target !== gameState.target || gameStateData.current_round !== gameState.current_round) {
         initRound(gameStateData);
       }
 
@@ -308,7 +308,7 @@ function initRound(data: GameState): void {
 
   // Update UI
   targetNumberEl.textContent = String(data.target);
-  roundDisplayEl.textContent = `Round ${data.round} of ${data.totalRounds}`;
+  roundDisplayEl.textContent = `Round ${data.current_round} of ${data.total_rounds}`;
   updateScreen();
 }
 
@@ -376,7 +376,7 @@ async function submitAnswer(): Promise<void> {
 
     if (data.success) {
       if (data.distance === 0) {
-        showToast(`PERFECT! ${data.result}`, 'success');
+        showToast(`PERFECT! ${data.result} `, 'success');
       } else {
         showToast(`Submitted: ${data.result} (${data.distance} off)`, 'success');
       }
@@ -393,12 +393,12 @@ async function submitAnswer(): Promise<void> {
 
 // Update timer display
 function updateTimer(): void {
-  if (!gameState.endTime) return;
+  if (!gameState.end_time) return;
 
   const now = Date.now() / 1000;
-  const left = Math.max(0, gameState.endTime - now);
+  const left = Math.max(0, gameState.end_time - now);
 
-  timerValEl.textContent = `${Math.ceil(left)}s`;
+  timerValEl.textContent = `${Math.ceil(left)} s`;
 
   // Add warning color when time is low
   if (left <= 10) {
@@ -411,7 +411,7 @@ function updateTimer(): void {
 // Show toast notification
 function showToast(msg: string, type: 'success' | 'error'): void {
   toastEl.textContent = msg;
-  toastEl.className = `toast ${type}`;
+  toastEl.className = `toast ${type} `;
 
   setTimeout(() => {
     toastEl.className = 'toast hidden';
@@ -421,16 +421,16 @@ function showToast(msg: string, type: 'success' | 'error'): void {
 // Show error state
 function showError(message: string): void {
   loadingEl.innerHTML = `
-    <div class="error-container">
-      <h2>Connection Error</h2>
-      <p>${message}</p>
-      <div style="margin-top: 1rem; font-size: 0.8em; opacity: 0.7; text-align: left; background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 4px;">
-        <p><strong>Debug Info:</strong></p>
-        <p>Client ID detected: ${CLIENT_ID ? CLIENT_ID.substring(0, 4) + '...' : 'UNDEFINED'}</p>
-        <p>Game ID: ${gameId}</p>
-      </div>
-    </div>
-  `;
+  < div class="error-container" >
+    <h2>Connection Error </h2>
+      < p > ${message} </p>
+        < div style = "margin-top: 1rem; font-size: 0.8em; opacity: 0.7; text-align: left; background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 4px;" >
+          <p><strong>Debug Info: </strong></p >
+            <p>Client ID detected: ${CLIENT_ID ? CLIENT_ID.substring(0, 4) + '...' : 'UNDEFINED'} </p>
+              < p > Game ID: ${gameId} </p>
+                </div>
+                </div>
+                  `;
 }
 
 // Cleanup on unload
