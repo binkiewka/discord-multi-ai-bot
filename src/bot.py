@@ -1648,23 +1648,20 @@ class AIBot(commands.Bot):
         # Or key? The user passes ?id=CHANNEL_ID for now, assuming one game per channel.
         # Actually in link we can pass server_id and channel_id.
         # Let's use Query params in the link, but here ID is in path? 
-        # Let's expect game_id to be "SERVER_CHANNEL" format
         
-        if "_" not in game_id:
-             return web.json_response({"error": "Invalid ID"}, status=400)
-             
-        server_id, channel_id = game_id.split("_")
-        game = self.countdown_game.get_active_game(server_id, channel_id)
-        
-        if not game:
-            return web.json_response({"error": "Game not found"}, status=404)
+        # Auto-create game if it doesn't exist (supports direct activity launches)
+        if game_id not in self.games:
+            print(f"Game {game_id} not found, auto-creating new instance", flush=True)
+            self.games[game_id] = CountdownGame(game_id)
             
+        game = self.games[game_id]
+        
         return web.json_response({
-            "target": game.target,
-            "numbers": game.numbers,
-            "endTime": game.end_time,
-            "round": game.current_round,
-            "totalRounds": game.total_rounds
+            'target': game.target,
+            'numbers': game.numbers,
+            'endTime': game.end_time,
+            'round': game.round,
+            'totalRounds': game.TOTAL_ROUNDS
         })
 
     async def web_handle_submit_api(self, request):
