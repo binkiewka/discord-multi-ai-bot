@@ -380,6 +380,10 @@ class AIBot(commands.Bot):
         except Exception as e:
             print(f"Failed to sync command tree: {e}", flush=True)
 
+        # Start web server for Activity API
+        print("Starting web server task...", flush=True)
+        self.bg_task = asyncio.create_task(self.start_web_server())
+
     async def has_permissions(self, ctx) -> bool:
         """Check if user has required permissions (admin, moderator, or bot owner)"""
         return (
@@ -1650,11 +1654,7 @@ class AIBot(commands.Bot):
         except Exception as e:
             return web.json_response({'error': str(e)}, status=500)
 
-    # Override setup_hook to start web server
-    async def setup_hook(self):
-        """This is called when the bot is ready to start"""
-        self.add_commands()
-        self.bg_task = self.loop.create_task(self.start_web_server())
+
 
 class CountdownView(discord.ui.View):
     def __init__(self, bot, server_id, channel_id, base_url="http://localhost:10010"):
