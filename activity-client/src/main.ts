@@ -121,7 +121,9 @@ async function initializeDiscordSDK(): Promise<void> {
     initializeGame();
   } catch (error) {
     console.error('Discord SDK initialization failed:', error);
-    showError('Failed to connect to Discord. Please try again.');
+    // Show actual error message to help debugging
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    showError(`Failed to connect: ${errorMessage}`);
   }
 }
 
