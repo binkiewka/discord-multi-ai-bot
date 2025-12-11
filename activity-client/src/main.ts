@@ -255,27 +255,35 @@ async function fetchGameState(): Promise<void> {
       return;
     }
 
-    const data = await response.json();
+    // Debug: read text first
+    const textData = await response.text();
+    console.log("Raw Game State Response:", textData);
 
-    // Check for inactive status
-    if (data.status === 'inactive') {
-      showLobby();
-      return;
+    try {
+      const data = JSON.parse(textData);
+      // Check for inactive status
+      if (data.status === 'inactive') {
+        showLobby();
+        return;
+      }
+
+      // If active game, show game UI
+      if (lobbyEl.classList.contains('hidden') === false) {
+        showGame();
+      }
+
+      const gameStateData = data as GameState;
+
+      // If state changed (new round), reset
+      if (gameStateData.target !== gameState.target || gameStateData.round !== gameState.round) {
+        initRound(gameStateData);
+      }
+
+      gameState = gameStateData;
+    } catch (e) {
+      console.error("JSON Parse Error:", e, "Data:", textData);
+      showToast(`JSON Error: ${textData.substring(0, 20)}...`, 'error');
     }
-
-    // If active game, show game UI
-    if (lobbyEl.classList.contains('hidden') === false) {
-      showGame();
-    }
-
-    const gameStateData = data as GameState;
-
-    // If state changed (new round), reset
-    if (gameStateData.target !== gameState.target || gameStateData.round !== gameState.round) {
-      initRound(gameStateData);
-    }
-
-    gameState = gameStateData;
   } catch (error) {
     console.error('Poll error:', error);
   }
