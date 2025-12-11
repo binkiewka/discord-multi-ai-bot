@@ -383,22 +383,56 @@ class AIBot(commands.Bot):
              except Exception as e:
                  print(f"Failed to sync tree from on_ready: {e}", flush=True)
 
-    async def setup_hook(self):
-        """This is called when the bot is ready to start"""
-        self._setup_hook_ran = True
-        print("Executing setup_hook...", flush=True)
-        self.add_commands()
-        self._setup_slash_commands()
-        try:
-            print("Syncing command tree...", flush=True)
-            synced = await self.tree.sync()
-            print(f"Command tree synced. {len(synced)} commands registered.", flush=True)
-        except Exception as e:
-            print(f"Failed to sync command tree: {e}", flush=True)
+        # Custom sync to handle Type 4 Entry Point command
+        await self.custom_sync()
 
         # Start web server for Activity API
         print("Starting web server task...", flush=True)
         self.bg_task = asyncio.create_task(self.start_web_server())
+
+    async def custom_sync(self):
+        """Manual sync to include Type 4 Entry Point command"""
+        print("Executing custom command sync...", flush=True)
+        url = f"https://discord.com/api/v10/applications/{self.user.id}/commands"
+        headers = {"Authorization": f"Bot {self.config.discord_token}"}
+        
+        # Hardcoded payload to match existing Entry Point command
+        payload = [
+          {
+            "name": "launch",
+            "description": "Launch an activity",
+            "type": 4, # Primary Entry Point
+            "contexts": [0, 1, 2],
+            "integration_types": [0, 1],
+            "handler": 2
+          }
+        ]
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.put(url, headers=headers, json=payload) as resp:
+                    if resp.status in (200, 201):
+                        print("Custom sync successful (Type 4 command registered).", flush=True)
+                    else:
+                        print(f"Custom sync failed: {resp.status} {await resp.text()}", flush=True)
+        except Exception as e:
+            print(f"Custom sync error: {e}", flush=True)
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Handle interactions, specifically Type 4 Entry Point"""
+        # Type 4 is NOT in discord.InteractionType enum usually, check raw value if needed
+        # But discord.py might populate it as 'unknown' or value 4
+        # We'll check if it's the launch command
+        
+        if interaction.type.value == 4 or (interaction.data and interaction.data.get('name') == 'launch'):
+            print(f"Received Entry Point interaction: {interaction.data}", flush=True)
+            await self._launch_game(interaction)
+            return
+
+        # For other interactions, let the tree handle it?
+        # Standard on_interaction calls tree.process_interaction
+        await self.tree.on_interaction(interaction)
+
 
     async def has_permissions(self, ctx) -> bool:
         """Check if user has required permissions (admin, moderator, or bot owner)"""
@@ -411,37 +445,43 @@ class AIBot(commands.Bot):
         )
 
     def _setup_slash_commands(self):
-        """Register slash commands"""
-        @self.tree.command(name="launch", description="Start a game of Countdown/Numbers")
-        async def launch(interaction: discord.Interaction):
-            # Re-use the existing logic, but adapted for interaction
-            server_id = str(interaction.guild_id)
-            channel_id = str(interaction.channel_id)
+        """Register slash commands - kept for local reference but not synced via tree"""
+        # We don't really need to add it to tree if we handle it in on_interaction, 
+        # but good to keep it for structure.
+        pass
 
-            # Check for active game
-            if self.countdown_game.get_active_game(server_id, channel_id):
-                 await interaction.response.send_message("A game is already active in this channel!", ephemeral=True)
-                 return
-            
-            # Check for existing lobby
-            existing_lobby = self.countdown_game.get_lobby(server_id, channel_id)
-            if existing_lobby:
-                await interaction.response.send_message("A lobby is already open! Join it instead.", ephemeral=True)
-                return
+    async def _launch_game(self, interaction: discord.Interaction):
+        """Reusable game launch logic"""
+        server_id = str(interaction.guild_id)
+        # Note: interaction.channel_id might be None in some contexts?
+        # Entry Point usually works in context.
+        channel_id = str(interaction.channel_id)
 
-            # Create lobby
-            lobby = self.countdown_game.create_lobby(server_id, channel_id, str(interaction.user.id))
-            
-            # Create view and embed
-            view = CountdownSettingsView(self, lobby, interaction.user)
-            embed = self._create_lobby_embed(lobby, interaction.user)
-            
-            await interaction.response.send_message(embed=embed, view=view)
-            
-            # Save message ID to lobby for updates
-            message = await interaction.original_response()
-            lobby.message_id = str(message.id)
-            self.countdown_game.update_lobby(server_id, channel_id, lobby)
+        # Check for active game
+        if self.countdown_game.get_active_game(server_id, channel_id):
+             await interaction.response.send_message("A game is already active in this channel!", ephemeral=True)
+             return
+        
+        # Check for existing lobby
+        existing_lobby = self.countdown_game.get_lobby(server_id, channel_id)
+        if existing_lobby:
+            await interaction.response.send_message("A lobby is already open! Join it instead.", ephemeral=True)
+            return
+
+        # Create lobby
+        lobby = self.countdown_game.create_lobby(server_id, channel_id, str(interaction.user.id))
+        
+        # Create view and embed
+        view = CountdownSettingsView(self, lobby, interaction.user)
+        embed = self._create_lobby_embed(lobby, interaction.user)
+        
+        await interaction.response.send_message(embed=embed, view=view)
+        
+        # Save message ID to lobby for updates
+        message = await interaction.original_response()
+        lobby.message_id = str(message.id)
+        self.countdown_game.update_lobby(server_id, channel_id, lobby)
+
 
     def add_commands(self):
         """Register commands using the command handlers dictionary"""
