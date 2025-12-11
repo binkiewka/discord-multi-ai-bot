@@ -1119,7 +1119,7 @@ class AIBot(commands.Bot):
 
         while True:
             # Get fresh game state
-            current_game = self.countdown_game.get_active_game(server_id, channel_id)
+            current_game = self.countdown_game.get_active_game(server_id, channel_id, auto_advance=False)
             if not current_game or current_game.status != "active":
                 break
 
