@@ -246,7 +246,30 @@ class CountdownGame:
         data = self.redis.redis.get(key)
         if data:
             game = GameState.from_json(data)
-            if game.status == GameStatus.ACTIVE.value:
+            
+            # Lazy Evaluation: Check if round expired
+            if game.status == GameStatus.ACTIVE.value and game.is_expired():
+                # Process round results
+                submissions = self._get_all_submissions(server_id, channel_id)
+                winners = self.determine_winners(submissions)
+                
+                # Calculate points
+                points = {}
+                for s in winners:
+                    # 10 points for exact match, 7 for 1 away, 5 for <5 away
+                    if s.distance == 0:
+                        p = 10
+                    elif s.distance <= 5:
+                        p = 7
+                    else:
+                        p = 5
+                    points[s.user_id] = p
+                
+                # Advance round or end game
+                game = self.advance_round(server_id, channel_id, points)
+                return game
+
+            if game and game.status == GameStatus.ACTIVE.value:
                 return game
         return None
 
