@@ -355,6 +355,10 @@ class AIBot(commands.Bot):
     async def setup_hook(self):
         """This is called when the bot is ready to start"""
         self.add_commands()
+        self._setup_slash_commands()
+        print("Syncing command tree...")
+        await self.tree.sync()
+        print("Command tree synced.")
 
     async def has_permissions(self, ctx) -> bool:
         """Check if user has required permissions (admin, moderator, or bot owner)"""
@@ -365,6 +369,39 @@ class AIBot(commands.Bot):
                 ctx.author.guild_permissions.moderate_members
             ))
         )
+
+    def _setup_slash_commands(self):
+        """Register slash commands"""
+        @self.tree.command(name="numbers", description="Start a game of Countdown/Numbers")
+        async def numbers(interaction: discord.Interaction):
+            # Re-use the existing logic, but adapted for interaction
+            server_id = str(interaction.guild_id)
+            channel_id = str(interaction.channel_id)
+
+            # Check for active game
+            if self.countdown_game.get_active_game(server_id, channel_id):
+                 await interaction.response.send_message("A game is already active in this channel!", ephemeral=True)
+                 return
+            
+            # Check for existing lobby
+            existing_lobby = self.countdown_game.get_lobby(server_id, channel_id)
+            if existing_lobby:
+                await interaction.response.send_message("A lobby is already open! Join it instead.", ephemeral=True)
+                return
+
+            # Create lobby
+            lobby = self.countdown_game.create_lobby(server_id, channel_id, str(interaction.user.id))
+            
+            # Create view and embed
+            view = CountdownSettingsView(self, lobby, interaction.user)
+            embed = self._create_lobby_embed(lobby, interaction.user)
+            
+            await interaction.response.send_message(embed=embed, view=view)
+            
+            # Save message ID to lobby for updates
+            message = await interaction.original_response()
+            lobby.message_id = str(message.id)
+            self.countdown_game.update_lobby(server_id, channel_id, lobby)
 
     def add_commands(self):
         """Register commands using the command handlers dictionary"""
