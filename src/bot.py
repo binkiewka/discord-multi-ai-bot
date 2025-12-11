@@ -1724,14 +1724,16 @@ class AIBot(commands.Bot):
         """Handle submission from web."""
         from aiohttp import web
         data = await request.json()
-        game_id = data.get('game_id')
+        game_id = str(data.get('game_id', '')).strip()
         user_id = data.get('user_id')
         expression = data.get('expression')
         
         if not game_id or not user_id or not expression:
              return web.json_response({"success": False, "error": "Missing data"}, status=400)
 
-        server_id, channel_id = game_id.split("_")
+        server_id, channel_id = game_id.split("_", 1)
+        server_id = server_id.strip()
+        channel_id = channel_id.strip()
         
         try:
             submission = self.countdown_game.submit_answer(server_id, channel_id, user_id, expression)
