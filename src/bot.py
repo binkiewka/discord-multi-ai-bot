@@ -1620,6 +1620,7 @@ class AIBot(commands.Bot):
             self.app.router.add_get('/game/{game_id}', self.web_handle_game_api) # Alias
             
             self.app.router.add_post('/api/game/create', self.web_handle_create_game)
+            self.app.router.add_post('/game/create', self.web_handle_create_game) # Alias
             
             self.app.router.add_post('/api/submit', self.web_handle_submit_api)
             self.app.router.add_post('/submit', self.web_handle_submit_api) # Alias
@@ -1663,7 +1664,10 @@ class AIBot(commands.Bot):
             # Return the game state as JSON
             # Safer: Load to dict first to ensure clean JSON
             import json
-            return web.json_response(json.loads(game.to_json()))
+            response_data = json.loads(game.to_json())
+            # Debug: Print what we are sending
+            print(f"Sending Game JSON ({len(str(response_data))} chars): {str(response_data)[:100]}...", flush=True)
+            return web.json_response(response_data)
             
         except Exception as e:
             print(f"Error handling request: {e}", flush=True)
