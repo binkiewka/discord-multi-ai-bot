@@ -309,13 +309,21 @@ async function fetchGameState(): Promise<void> {
     const textData = await response.text();
     console.log("Raw Game State Response:", textData);
 
+    let data;
     try {
-      const data = JSON.parse(textData);
+      data = JSON.parse(textData);
+    } catch (e) {
+      console.error("JSON Parse Error:", e, "Data:", textData);
+      showToast(`JSON Error: ${textData.substring(0, 20)}...`, 'error');
+      return;
+    }
+
+    try {
       // Check for inactive status
       if (data.status === 'inactive') {
         // If we are already in lobby, do nothing. If valid game ended, we might want to stay on leaderboard?
         // But if I am in game -> inactive => someone deleted it or TTL expired.
-        if (leaderboardEl.classList.contains('hidden') === false) {
+        if (leaderboardEl && leaderboardEl.classList.contains('hidden') === false) {
           // We are looking at leaderboard. Don't auto-kick to lobby yet unless user clicks back.
           return;
         }
@@ -330,7 +338,9 @@ async function fetchGameState(): Promise<void> {
       }
 
       // If active game, show game UI
-      if (lobbyEl.classList.contains('hidden') === false || leaderboardEl.classList.contains('hidden') === false || !gameContainerEl.classList.contains('hidden')) {
+      if ((lobbyEl && lobbyEl.classList.contains('hidden') === false) ||
+        (leaderboardEl && leaderboardEl.classList.contains('hidden') === false) ||
+        (gameContainerEl && !gameContainerEl.classList.contains('hidden'))) {
         showGame();
       } else {
         // Initial load
@@ -345,8 +355,9 @@ async function fetchGameState(): Promise<void> {
 
       gameState = gameStateData;
     } catch (e) {
-      console.error("JSON Parse Error:", e, "Data:", textData);
-      showToast(`JSON Error: ${textData.substring(0, 20)}...`, 'error');
+      console.error("Logic Error processing game state:", e);
+      // Don't show toast for logic errors unless critical, to avoid spamming user
+      // showToast('State Error', 'error');
     }
   } catch (error) {
     console.error('Poll error:', error);
