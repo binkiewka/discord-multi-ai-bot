@@ -49,6 +49,7 @@ let timerInterval: number | null = null;
 
 // DOM Elements
 const loadingEl = document.getElementById('loading')!;
+const lobbyEl = document.getElementById('lobby-container')!;
 const gameContainerEl = document.getElementById('game-container')!;
 const targetNumberEl = document.getElementById('target-number')!;
 const numbersContainerEl = document.getElementById('numbers-container')!;
@@ -58,6 +59,13 @@ const roundDisplayEl = document.getElementById('round-display')!;
 const userDisplayEl = document.getElementById('user-display')!;
 const toastEl = document.getElementById('toast')!;
 const submitBtn = document.getElementById('btn-submit') as HTMLButtonElement;
+const startGameBtn = document.getElementById('btn-start-game') as HTMLButtonElement;
+
+// Lobby State
+let lobbySettings = {
+  rounds: 3,
+  time: 60
+};
 
 // Initialize Discord SDK
 async function initializeDiscordSDK(): Promise<void> {
@@ -142,11 +150,83 @@ function initializeGame(): void {
 
   // Set up button event listeners
   setupEventListeners();
+  setupLobbyListeners(); // New lobby listeners
 
   // Start polling for game state
   fetchGameState();
   pollInterval = window.setInterval(fetchGameState, 2000);
   timerInterval = window.setInterval(updateTimer, 100);
+}
+
+function showLobby(): void {
+  loadingEl.classList.add('hidden');
+  gameContainerEl.classList.add('hidden');
+  lobbyEl.classList.remove('hidden');
+}
+
+function showGame(): void {
+  loadingEl.classList.add('hidden');
+  lobbyEl.classList.add('hidden');
+  gameContainerEl.classList.remove('hidden');
+}
+
+function setupLobbyListeners(): void {
+  // Rounds selection
+  document.getElementById('rounds-select')?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON') {
+      document.querySelectorAll('#rounds-select .seg-btn').forEach(b => b.classList.remove('active'));
+      target.classList.add('active');
+      lobbySettings.rounds = parseInt(target.getAttribute('data-value') || '3');
+    }
+  });
+
+  // Time selection
+  document.getElementById('time-select')?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON') {
+      document.querySelectorAll('#time-select .seg-btn').forEach(b => b.classList.remove('active'));
+      target.classList.add('active');
+      lobbySettings.time = parseInt(target.getAttribute('data-value') || '60');
+    }
+  });
+
+  // Start Game
+  startGameBtn?.addEventListener('click', createGame);
+}
+
+async function createGame(): Promise<void> {
+  if (!authenticatedUser) return;
+
+  startGameBtn.disabled = true;
+  startGameBtn.textContent = "STARTING...";
+
+  try {
+    const response = await fetch('/.proxy/api/game/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        server_id: gameId.split('_')[0], // Extract from gameId logic
+        channel_id: gameId.split('_')[1] || gameId.split('_')[0], // Fallback if no underscore
+        rounds: lobbySettings.rounds,
+        duration: lobbySettings.time,
+        started_by: authenticatedUser.id
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || "Failed to create game");
+    }
+
+    // Success - fetch state immediately
+    await fetchGameState();
+
+  } catch (e) {
+    showToast(String(e), 'error');
+    startGameBtn.disabled = false;
+    startGameBtn.textContent = "START GAME";
+  }
 }
 
 // Set up button event listeners
@@ -175,14 +255,27 @@ async function fetchGameState(): Promise<void> {
       return;
     }
 
-    const data: GameState = await response.json();
+    const data = await response.json();
 
-    // If state changed (new round), reset
-    if (data.target !== gameState.target || data.round !== gameState.round) {
-      initRound(data);
+    // Check for inactive status
+    if (data.status === 'inactive') {
+      showLobby();
+      return;
     }
 
-    gameState = data;
+    // If active game, show game UI
+    if (lobbyEl.classList.contains('hidden') === false) {
+      showGame();
+    }
+
+    const gameStateData = data as GameState;
+
+    // If state changed (new round), reset
+    if (gameStateData.target !== gameState.target || gameStateData.round !== gameState.round) {
+      initRound(gameStateData);
+    }
+
+    gameState = gameStateData;
   } catch (error) {
     console.error('Poll error:', error);
   }

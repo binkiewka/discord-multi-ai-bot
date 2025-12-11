@@ -468,36 +468,28 @@ class AIBot(commands.Bot):
         pass
 
     async def _launch_game(self, interaction: discord.Interaction):
-        """Reusable game launch logic"""
+        """Reusable game launch logic - now just directs to Activity"""
+        # Since we are moving lobby logic to the Activity itself, checking for active games here is less critical,
+        # but we can still inform them if one is running.
+        
         server_id = str(interaction.guild_id)
-        # Note: interaction.channel_id might be None in some contexts?
-        # Entry Point usually works in context.
-        channel_id = str(interaction.channel_id)
-
-        # Check for active game
-        if self.countdown_game.get_active_game(server_id, channel_id):
-             await interaction.response.send_message("A game is already active in this channel!", ephemeral=True)
-             return
+        # channel_id = str(interaction.channel_id)
         
-        # Check for existing lobby
-        existing_lobby = self.countdown_game.get_lobby(server_id, channel_id)
-        if existing_lobby:
-            await interaction.response.send_message("A lobby is already open! Join it instead.", ephemeral=True)
-            return
-
-        # Create lobby
-        lobby = self.countdown_game.create_lobby(server_id, channel_id, str(interaction.user.id))
+        # We don't create a python-side lobby anymore.
+        # We just want them to open the Activity.
         
-        # Create view and embed
-        view = CountdownSettingsView(self, lobby, interaction.user)
-        embed = self._create_lobby_embed(lobby, interaction.user)
-        
-        await interaction.response.send_message(embed=embed, view=view)
-        
-        # Save message ID to lobby for updates
-        message = await interaction.original_response()
-        lobby.message_id = str(message.id)
-        self.countdown_game.update_lobby(server_id, channel_id, lobby)
+        embed = discord.Embed(
+            title="🔢 Numbers Game",
+            description=(
+                "**How to Play:**\n"
+                "1. Click the **Rocketship 🚀** icon (Activities) in the chat bar.\n"
+                "2. Select **Numbers Game**.\n"
+                "3. Configure settings and start the game inside the activity!\n\n"
+                "*All game setup is now handled directly in the game window.*"
+            ),
+            color=0x5865F2
+        )
+        await interaction.response.send_message(embed=embed)
 
 
     def add_commands(self):
@@ -1627,6 +1619,8 @@ class AIBot(commands.Bot):
             self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
             self.app.router.add_get('/game/{game_id}', self.web_handle_game_api) # Alias
             
+            self.app.router.add_post('/api/game/create', self.web_handle_create_game)
+            
             self.app.router.add_post('/api/submit', self.web_handle_submit_api)
             self.app.router.add_post('/submit', self.web_handle_submit_api) # Alias
             
@@ -1652,7 +1646,10 @@ class AIBot(commands.Bot):
         
         try:
             if "_" not in game_id:
-                return web.json_response({"error": "Invalid game ID format"}, status=400)
+                # Fallback for old/simple IDs - treat as Channel ID
+                # We need server ID. If we don't have it, we can't look up reliably unless we key by channel only.
+                # But our keys are 'countdown:game:SERVER:CHANNEL'.
+                return web.json_response({"error": "Invalid game ID format", "status": "inactive"}, status=200)
                 
             server_id, channel_id = game_id.split("_")
             
@@ -1660,27 +1657,51 @@ class AIBot(commands.Bot):
             game = self.countdown_game.get_active_game(server_id, channel_id)
             
             if not game:
-                print(f"Game {game_id} not found, auto-creating new instance via API...", flush=True)
-                # Auto-create a default game
-                try:
-                    # We don't have a user ID here easily, so use specific placeholder
-                    game = self.countdown_game.create_game(
-                        server_id=server_id, 
-                        channel_id=channel_id, 
-                        started_by="activity_auto_start"
-                    )
-                except ValueError as e:
-                    # Race condition or other error
-                    print(f"Failed to auto-create game: {e}", flush=True)
-                    return web.json_response({"error": str(e)}, status=500)
+                # Return inactive status so frontend shows Lobby
+                return web.json_response({"status": "inactive"}, status=200)
 
             # Return the game state as JSON
-            # GameState.to_json() returns a string, so we parse it back to dict or send as text
             return web.json_response(text=game.to_json())
             
         except Exception as e:
             print(f"Error handling request: {e}", flush=True)
             import traceback
+            traceback.print_exc()
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def web_handle_create_game(self, request):
+        """Handle game creation from web lobby."""
+        try:
+            data = await request.json()
+            server_id = data.get('server_id')
+            channel_id = data.get('channel_id')
+            started_by = data.get('started_by')
+            rounds = int(data.get('rounds', 3))
+            duration = int(data.get('duration', 60))
+
+            if not all([server_id, channel_id, started_by]):
+                return web.json_response({"error": "Missing required fields"}, status=400)
+
+            print(f"Creating game via API: Server {server_id}, Channel {channel_id}, Rounds {rounds}", flush=True)
+
+            # Create game
+            # Note: create_game raises ValueError if game exists
+            try:
+                game = self.countdown_game.create_game(
+                    server_id=server_id,
+                    channel_id=channel_id,
+                    started_by=started_by,
+                    total_rounds=rounds,
+                    round_duration=duration
+                )
+                return web.json_response(text=game.to_json())
+            except ValueError as e:
+                # If game exists, return it? Or error?
+                # If it exists, they should join it.
+                return web.json_response({"error": str(e)}, status=400)
+
+        except Exception as e:
+            print(f"Create Game Error: {e}", flush=True)
             traceback.print_exc()
             return web.json_response({"error": str(e)}, status=500)
 
