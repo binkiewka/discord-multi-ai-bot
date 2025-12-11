@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Numbers Game - Discord Activity</title>
+    <title>NEXUS//NUMBERS - Discord Activity</title>
     <link rel="stylesheet" href="/src/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -14,33 +14,32 @@
         <!-- Loading State -->
         <div id="loading" class="loading-container">
             <div class="loading-spinner"></div>
-            <p>Connecting to Discord...</p>
+            <p>[INITIALIZING NEURAL LINK...]</p>
         </div>
 
         <!-- Lobby Container (hidden by default) -->
         <div id="lobby-container" class="container hidden">
             <header class="game-header">
                 <div class="live-indicator">
-                    <span class="blinking-dot" style="background-color: var(--primary);"></span> GAME SETUP
+                    <span class="blinking-dot" style="background-color: var(--primary);"></span> PROTOCOL INIT
                 </div>
             </header>
 
             <div class="glass-panel" style="padding: 24px; gap: 24px; flex: 1; justify-content: flex-start;">
-                <h1 style="font-size: 2rem; margin-bottom: 10px;">Numbers Game</h1>
+                <h1 style="font-size: 1.8rem; margin-bottom: 10px; font-family: var(--font-mono); letter-spacing: 2px;">NEXUS//NUMBERS</h1>
 
                 <div class="form-group" style="width: 100%;">
                     <label
-                        style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem;">ROUNDS</label>
+                        style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono); letter-spacing: 2px;">◈ CYCLES</label>
                     <div class="segmented-control" id="rounds-select">
-                        <button class="seg-btn" data-value="1">1</button>
-                        <button class="seg-btn active" data-value="3">3</button>
-                        <button class="seg-btn" data-value="5">5</button>
+                        <button class="seg-btn" data-value="1">01</button>
+                        <button class="seg-btn active" data-value="3">03</button>
+                        <button class="seg-btn" data-value="5">05</button>
                     </div>
                 </div>
 
                 <div class="form-group" style="width: 100%;">
-                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem;">TIME
-                        PER ROUND</label>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono); letter-spacing: 2px;">◈ DURATION</label>
                     <div class="segmented-control" id="time-select">
                         <button class="seg-btn" data-value="30">30s</button>
                         <button class="seg-btn active" data-value="60">60s</button>
@@ -49,7 +48,7 @@
                 </div>
 
                 <div style="margin-top: auto; width: 100%;">
-                    <button class="btn btn-submit" id="btn-start-game">START GAME</button>
+                    <button class="btn btn-submit" id="btn-start-game">▶ INITIALIZE SEQUENCE</button>
                 </div>
             </div>
         </div>
@@ -58,13 +57,13 @@
         <div id="leaderboard-container" class="container hidden">
             <header class="game-header">
                 <div class="live-indicator">
-                    <span class="blinking-dot" style="background-color: var(--primary);"></span> RESULTS
+                    <span class="blinking-dot" style="background-color: var(--primary);"></span> TRANSMISSION COMPLETE
                 </div>
             </header>
 
             <div class="glass-panel" style="padding: 24px; gap: 16px; flex: 1; justify-content: flex-start;">
-                <h1 style="font-size: 2rem;">Game Over</h1>
-                <p style="color: var(--text-muted);">Final Scores</p>
+                <h1 style="font-size: 1.6rem; font-family: var(--font-mono); letter-spacing: 3px;">◈◈◈ PROTOCOL COMPLETE ◈◈◈</h1>
+                <p style="color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 2px;">NETWORK STANDINGS</p>
 
                 <div id="leaderboard-list"
                     style="width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
@@ -72,7 +71,7 @@
                 </div>
 
                 <div style="margin-top: auto; width: 100%;">
-                    <button class="btn btn-submit" id="btn-return-lobby">BACK TO LOBBY</button>
+                    <button class="btn btn-submit" id="btn-return-lobby">◈ REINITIALIZE</button>
                 </div>
             </div>
         </div>
@@ -82,7 +81,7 @@
             <!-- Header / Status -->
             <header class="game-header">
                 <div class="live-indicator">
-                    <span class="blinking-dot"></span> LIVE SESSION
+                    <span class="blinking-dot"></span> TRANSMISSION ACTIVE
                 </div>
                 <div class="timer">
                     <span id="timer-val">00s</span>
@@ -95,13 +94,13 @@
 
             <!-- Round Info -->
             <div class="round-info">
-                <span id="round-display">Round 1 of 1</span>
+                <span id="round-display">CYCLE 1/1</span>
             </div>
 
             <!-- Target Big Display -->
             <div class="target-section glass-panel">
                 <h1 id="target-number" class="glow-text">---</h1>
-                <p class="label">TARGET VALUE</p>
+                <p class="label">◈ TARGET LOCK ◈</p>
             </div>
 
             <!-- Available Numbers -->
@@ -117,7 +116,7 @@
             <!-- Calculation Display (Screen) -->
             <div class="screen-section glass-panel">
                 <div class="calc-screen" id="calc-screen">
-                    <span class="placeholder">Select numbers...</span>
+                    <span class="placeholder">> AWAITING INPUT_</span>
                 </div>
             </div>
 
@@ -126,46 +125,46 @@
                 <div class="action-grid">
                     <button class="btn btn-op" id="btn-add">+</button>
                     <button class="btn btn-op" id="btn-sub">-</button>
-                    <button class="btn btn-op" id="btn-mul">x</button>
-                    <button class="btn btn-op" id="btn-div">/</button>
+                    <button class="btn btn-op" id="btn-mul">×</button>
+                    <button class="btn btn-op" id="btn-div">÷</button>
                     <button class="btn btn-op" id="btn-lparen">(</button>
                     <button class="btn btn-op" id="btn-rparen">)</button>
-                    <button class="btn btn-danger" id="btn-clear">CLR</button>
+                    <button class="btn btn-danger" id="btn-clear">◈ PURGE</button>
                 </div>
 
                 <button class="btn btn-submit" id="btn-submit">
-                    SUBMIT ANSWER
+                    ⬡ TRANSMIT
                 </button>
             </div>
 
             <!-- User Info -->
             <div class="user-info">
-                <span id="user-display">Playing as: Guest</span>
+                <span id="user-display">OPERATOR: Guest</span>
             </div>
         </div>
     </div>
 
     <!-- Round Results Overlay -->
     <div id="round-results" class="overlay hidden">
-        <div class="glass-panel" style="padding: 24px; gap: 16px; max-width: 320px;">
-            <h2 style="color: var(--primary);">Round Complete!</h2>
+        <div class="glass-panel" style="padding: 24px; gap: 16px; max-width: 340px;">
+            <h2 style="color: var(--primary);">◈ CYCLE TERMINATED ◈</h2>
 
             <div style="text-align: center;">
-                <p style="color: var(--text-muted); font-size: 0.9rem;">TARGET</p>
+                <p style="color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono); letter-spacing: 2px;">TARGET LOCK</p>
                 <h1 id="result-target" class="glow-text" style="font-size: 3rem;">---</h1>
             </div>
 
             <div style="text-align: center;">
-                <p style="color: var(--text-muted); font-size: 0.9rem;">BEST SOLUTION</p>
-                <p id="result-best" style="font-size: 1.2rem; font-family: monospace;">---</p>
-                <p style="color: var(--text-muted);">= <span id="result-best-val">---</span></p>
+                <p style="color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono); letter-spacing: 2px;">OPTIMAL PATH</p>
+                <p id="result-best" style="font-size: 1.2rem; font-family: var(--font-mono); color: var(--success);">---</p>
+                <p style="color: var(--text-muted); font-family: var(--font-mono);">= <span id="result-best-val">---</span></p>
             </div>
 
-            <div id="result-points" style="font-size: 1.5rem; color: var(--primary); font-weight: bold;">
-                +0 pts
+            <div id="result-points" style="font-size: 1.5rem; color: var(--primary); font-weight: bold; font-family: var(--font-mono); letter-spacing: 2px;">
+                +0 CREDITS
             </div>
 
-            <button class="btn btn-submit" id="btn-next-round">NEXT ROUND (5s)</button>
+            <button class="btn btn-submit" id="btn-next-round">◈ NEXT CYCLE [5s]</button>
         </div>
     </div>
 

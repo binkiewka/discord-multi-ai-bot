@@ -164,7 +164,7 @@ function initializeGame(): void {
   // Update user display
   if (authenticatedUser) {
     const displayName = authenticatedUser.global_name || authenticatedUser.username;
-    userDisplayEl.textContent = `Playing as: ${displayName} `;
+    userDisplayEl.textContent = `OPERATOR: ${displayName}`;
   }
 
   // Set up button event listeners
@@ -186,7 +186,7 @@ function showLobby(): void {
   // Reset start button state
   if (startGameBtn) {
     startGameBtn.disabled = false;
-    startGameBtn.textContent = 'START GAME';
+    startGameBtn.textContent = '▶ INITIALIZE SEQUENCE';
   }
 }
 
@@ -204,7 +204,7 @@ function showLeaderboard(data: GameState): void {
     const sorted = Object.entries(data.game_scores).sort(([, a], [, b]) => b - a);
 
     if (sorted.length === 0) {
-      leaderboardListEl.innerHTML = '<p style="text-align:center; opacity:0.5;">No points scored!</p>';
+      leaderboardListEl.innerHTML = '<p style="text-align:center; opacity:0.5; font-family: var(--font-mono);">◈ NO CREDITS LOGGED ◈</p>';
     }
 
     sorted.forEach(([uid, score], idx) => {
@@ -220,12 +220,12 @@ function showLeaderboard(data: GameState): void {
       // For now, check if it's us
       let name = uid;
       if (authenticatedUser && uid === authenticatedUser.id) {
-        name = `${authenticatedUser.username} (You)`;
+        name = `${authenticatedUser.username} ◈YOU◈`;
       } else {
-        name = `Player ${uid.substring(0, 4)}`; // Anonymize/Shorten slightly
+        name = `NODE_${uid.substring(0, 4)}`; // Anonymize/Shorten slightly
       }
 
-      row.innerHTML = `<span>#${idx + 1} ${name}</span> <span style="font-weight:bold; color:var(--primary);">${score} pts</span>`;
+      row.innerHTML = `<span>[0${idx + 1}] ◈ ${name}</span> <span style="font-weight:bold; color:var(--primary); font-family: var(--font-mono);">${score} CREDITS</span>`;
       leaderboardListEl.appendChild(row);
     });
   }
@@ -241,21 +241,21 @@ function showGame(): void {
 
 function showRoundResults(results: NonNullable<GameState['last_round']>) {
   resTargetEl.textContent = String(results.target);
-  resBestEl.textContent = results.best_solution || "No solution";
+  resBestEl.textContent = results.best_solution || "NO SOLUTION FOUND";
   resBestValEl.textContent = String(results.best_value);
 
   const myPoints = (authenticatedUser && results.player_scores[authenticatedUser.id]) || 0;
-  resPointsEl.textContent = `+${myPoints} pts`;
+  resPointsEl.textContent = `+${myPoints} CREDITS`;
 
   resultsOverlayEl.classList.remove('hidden');
 
   // Auto hide after 5 seconds
   let seconds = 5;
-  btnNextRound.textContent = `NEXT ROUND (${seconds}s)`;
+  btnNextRound.textContent = `◈ NEXT CYCLE [${seconds}s]`;
 
   const interval = setInterval(() => {
     seconds--;
-    btnNextRound.textContent = `NEXT ROUND (${seconds}s)`;
+    btnNextRound.textContent = `◈ NEXT CYCLE [${seconds}s]`;
     if (seconds <= 0) {
       clearInterval(interval);
       resultsOverlayEl.classList.add('hidden');
@@ -298,7 +298,7 @@ async function createGame(): Promise<void> {
   if (!authenticatedUser) return;
 
   startGameBtn.disabled = true;
-  startGameBtn.textContent = "STARTING...";
+  startGameBtn.textContent = "◈ INITIALIZING...";
 
   try {
     const response = await fetch('/.proxy/api/game/create', {
@@ -324,7 +324,7 @@ async function createGame(): Promise<void> {
   } catch (e) {
     showToast(String(e), 'error');
     startGameBtn.disabled = false;
-    startGameBtn.textContent = "START GAME";
+    startGameBtn.textContent = "▶ INITIALIZE SEQUENCE";
   }
 }
 
@@ -350,7 +350,7 @@ async function fetchGameState(): Promise<void> {
 
     if (!response.ok) {
       if (response.status === 404) {
-        showToast('Game not found or ended', 'error');
+        showToast('◈ SIGNAL LOST: SESSION TERMINATED', 'error');
       }
       return;
     }
@@ -453,7 +453,7 @@ function initRound(data: GameState): void {
 
   // Update UI
   targetNumberEl.textContent = String(data.target);
-  roundDisplayEl.textContent = `Round ${data.current_round} of ${data.total_rounds}`;
+  roundDisplayEl.textContent = `CYCLE ${data.current_round}/${data.total_rounds}`;
   updateScreen();
 }
 
@@ -494,7 +494,7 @@ function clearCalc(): void {
 // Update the calculation screen display
 function updateScreen(): void {
   if (!currentExpression) {
-    calcScreenEl.innerHTML = '<span class="placeholder">Select numbers...</span>';
+    calcScreenEl.innerHTML = '<span class="placeholder">> AWAITING INPUT_</span>';
   } else {
     calcScreenEl.textContent = currentExpression;
   }
@@ -521,16 +521,16 @@ async function submitAnswer(): Promise<void> {
 
     if (data.success) {
       if (data.distance === 0) {
-        showToast(`PERFECT! ${data.result} `, 'success');
+        showToast(`◈ EXACT DECODE: ${data.result}`, 'success');
       } else {
-        showToast(`Submitted: ${data.result} (${data.distance} off)`, 'success');
+        showToast(`◈ TRANSMITTED: ${data.result} | Δ${data.distance}`, 'success');
       }
     } else {
-      showToast(data.error || 'Invalid Expression', 'error');
+      showToast(data.error || '◈ SYNTAX ERROR: INVALID SEQUENCE', 'error');
     }
   } catch (error) {
     console.error('Submit error:', error);
-    showToast('Network Error', 'error');
+    showToast('◈ TRANSMISSION FAILED: NETWORK OFFLINE', 'error');
   } finally {
     submitBtn.disabled = false;
   }
@@ -543,7 +543,7 @@ function updateTimer(): void {
   const now = Date.now() / 1000;
   const left = Math.max(0, gameState.end_time - now);
 
-  timerValEl.textContent = `${Math.ceil(left)} s`;
+  timerValEl.textContent = `${Math.ceil(left)}s`;
 
   // Add warning color when time is low
   if (left <= 10) {
@@ -566,16 +566,16 @@ function showToast(msg: string, type: 'success' | 'error'): void {
 // Show error state
 function showError(message: string): void {
   loadingEl.innerHTML = `
-  < div class="error-container" >
-    <h2>Connection Error </h2>
-      < p > ${message} </p>
-        < div style = "margin-top: 1rem; font-size: 0.8em; opacity: 0.7; text-align: left; background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 4px;" >
-          <p><strong>Debug Info: </strong></p >
-            <p>Client ID detected: ${CLIENT_ID ? CLIENT_ID.substring(0, 4) + '...' : 'UNDEFINED'} </p>
-              < p > Game ID: ${gameId} </p>
-                </div>
-                </div>
-                  `;
+    <div class="error-container" style="text-align: center; font-family: var(--font-mono);">
+      <h2 style="color: var(--danger);">◈◈◈ CONNECTION SEVERED ◈◈◈</h2>
+      <p style="color: var(--text-muted);">${message}</p>
+      <div style="margin-top: 1rem; font-size: 0.75rem; opacity: 0.7; text-align: left; background: rgba(0,255,255,0.05); padding: 0.75rem; border-radius: 4px; border: 1px solid rgba(0,255,255,0.1);">
+        <p style="color: var(--primary);">◈ DIAGNOSTIC LOG:</p>
+        <p>CLIENT_NODE: ${CLIENT_ID ? CLIENT_ID.substring(0, 4) + '...' : 'UNDEFINED'}</p>
+        <p>SESSION_ID: ${gameId || 'NULL'}</p>
+      </div>
+    </div>
+  `;
 }
 
 // Cleanup on unload
