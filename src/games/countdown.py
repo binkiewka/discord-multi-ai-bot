@@ -235,7 +235,7 @@ class CountdownGame:
         ttl = (state.round_duration * state.total_rounds) + 120
         self.redis.redis.expire(key, ttl)
 
-    def get_active_game(self, server_id: str, channel_id: str) -> Optional[GameState]:
+    def get_active_game(self, server_id: str, channel_id: str, auto_advance: bool = True) -> Optional[GameState]:
         """
         Get the active game for a channel, if any.
 
@@ -248,7 +248,7 @@ class CountdownGame:
             game = GameState.from_json(data)
             
             # Lazy Evaluation: Check if round expired
-            if game.status == GameStatus.ACTIVE.value and game.is_expired():
+            if auto_advance and game.status == GameStatus.ACTIVE.value and game.is_expired():
                 # Process round results
                 submissions = self._get_all_submissions(server_id, channel_id)
                 winners = self.determine_winners(submissions)
@@ -379,7 +379,7 @@ class CountdownGame:
         Raises:
             ValueError: If no game active, time expired, or already submitted
         """
-        game = self.get_active_game(server_id, channel_id)
+        game = self.get_active_game(server_id, channel_id, auto_advance=False)
         if not game:
             raise ValueError("No active game in this channel! Start one with `!countdown`")
 
@@ -435,7 +435,7 @@ class CountdownGame:
         Raises:
             ValueError: If no game to end
         """
-        game = self.get_active_game(server_id, channel_id)
+        game = self.get_active_game(server_id, channel_id, auto_advance=False)
         if not game:
             raise ValueError("No active game to end")
 
@@ -458,7 +458,7 @@ class CountdownGame:
         Returns:
             Tuple of (GameState, list of Submissions for this round)
         """
-        game = self.get_active_game(server_id, channel_id)
+        game = self.get_active_game(server_id, channel_id, auto_advance=False)
         if not game:
             raise ValueError("No active game to end round")
 
@@ -483,7 +483,7 @@ class CountdownGame:
         Returns:
             Updated GameState if more rounds remain, None if game is complete
         """
-        game = self.get_active_game(server_id, channel_id)
+        game = self.get_active_game(server_id, channel_id, auto_advance=False)
         if not game:
             raise ValueError("No active game")
 
@@ -547,7 +547,7 @@ class CountdownGame:
         Returns:
             True if game was cancelled, False if no game existed
         """
-        game = self.get_active_game(server_id, channel_id)
+        game = self.get_active_game(server_id, channel_id, auto_advance=False)
         if not game:
             return False
 
