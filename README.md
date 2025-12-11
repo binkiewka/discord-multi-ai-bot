@@ -16,7 +16,8 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - Support for detailed image prompts
   - Automatic image delivery in Discord
 - **Games**
-  - Countdown Numbers Game - Classic TV show-style math puzzle game
+  - Countdown Numbers Game - Class TV show-style math puzzle game
+  - **Web Dashboard** - Premium HTML5/JS single-page game interface
   - 30-second competitive multiplayer rounds
   - Secure expression parser (no code injection)
 - **Channel-Specific Configuration** - Set different AI models and roles per channel (admin only)
@@ -121,7 +122,15 @@ docker-compose up --build
   - Read Message History
   - Use External Emojis
   - Add Reactions
+  - Add Reactions
   - Attach Files (for image generation)
+
+6. **Web Dashboard Setup (Optional)**
+- The Numbers Game includes a modern web interface running on port `10010`.
+- To make it accessible externally:
+  1. Configure `PUBLIC_GAME_URL` in `.env` (e.g., `https://your-domain.com`)
+  2. Set up a reverse proxy (e.g., Caddy/Nginx) pointing to port `10010`.
+  - See `Caddyfile` for a Caddy proxy example.
 
 ## Usage
 
