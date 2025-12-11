@@ -25,44 +25,50 @@ class CalculatorView(discord.ui.View):
         self.user_id = user_id
         self.expression = ""
         self.used_indices = set()
-
+        
         # Add buttons
         self._init_buttons()
 
     def _init_buttons(self):
         self.clear_items()
 
-        # Row 0: All numbers in one row (up to 5)
-        for i, num in enumerate(self.game.numbers):
+        # Row 0: Numbers 1-3
+        for i in range(min(3, len(self.game.numbers))):
+            num = self.game.numbers[i]
             used = i in self.used_indices
             self.add_item(NumberButton(num, i, used, row=0))
 
-        # Row 1: Operators with modern symbols
+        # Row 1: Numbers 4-6
+        for i in range(3, min(6, len(self.game.numbers))):
+            num = self.game.numbers[i]
+            used = i in self.used_indices
+            self.add_item(NumberButton(num, i, used, row=1))
+
+        # Row 2: Basic Operators
         operators = [("+", "+"), ("−", "-"), ("×", "*"), ("÷", "/")]
         for label, op in operators:
-            self.add_item(OperatorButton(label, op, row=1))
+            self.add_item(OperatorButton(label, op, row=2))
 
-        # Row 2: Parentheses and controls
-        self.add_item(OperatorButton("(", "(", row=2))
-        self.add_item(OperatorButton(")", ")", row=2))
-        self.add_item(ActionButton("CLR", "clear", discord.ButtonStyle.secondary, row=2))
+        # Row 3: Parentheses and Clear
+        self.add_item(OperatorButton("(", "(", row=3))
+        self.add_item(OperatorButton(")", ")", row=3))
+        self.add_item(ActionButton("CLR", "clear", discord.ButtonStyle.danger, row=3))
 
-        # Row 3: Submit button (prominent)
-        self.add_item(ActionButton("✓  SUBMIT", "submit", discord.ButtonStyle.success, row=3))
+        # Row 4: Submit (Full width handled by Discord UI automatically if alone, but we'll see)
+        self.add_item(ActionButton("✓  SUBMIT ANSWER", "submit", discord.ButtonStyle.success, row=4))
 
     async def update_view(self, interaction: discord.Interaction):
         self._init_buttons()
-        # Modern expression display
-        expr_display = self.expression if self.expression else "..."
-        content = f"**Your expression:**\n```\n{expr_display}\n```"
-        await interaction.response.edit_message(content=content, view=self)
+        # Update the embed to show current expression
+        embed = self.bot._create_calculator_embed(self.game, self.expression)
+        await interaction.response.edit_message(embed=embed, view=self)
 
 class NumberButton(discord.ui.Button):
     def __init__(self, number, index, used=False, row=0):
-        # Used numbers show as disabled with different style
         super().__init__(
             label=str(number),
-            style=discord.ButtonStyle.danger if used else discord.ButtonStyle.secondary,
+            # Use secondary (gray) for numbers to look like keypad keys
+            style=discord.ButtonStyle.secondary,
             disabled=used,
             row=row
         )
@@ -71,9 +77,6 @@ class NumberButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: CalculatorView = self.view
-        if interaction.user.id != int(view.user_id):
-            return await interaction.response.send_message("This isn't your calculator!", ephemeral=True)
-
         view.expression += str(self.number)
         view.used_indices.add(self.index)
         await view.update_view(interaction)
@@ -83,17 +86,13 @@ class OperatorButton(discord.ui.Button):
     def __init__(self, label, operator, row=0):
         super().__init__(
             label=label,
-            style=discord.ButtonStyle.primary,
+            style=discord.ButtonStyle.primary, # Blurple for operators
             row=row
         )
         self.operator = operator
-        self.display_label = label
 
     async def callback(self, interaction: discord.Interaction):
         view: CalculatorView = self.view
-        if interaction.user.id != int(view.user_id):
-            return await interaction.response.send_message("This isn't your calculator!", ephemeral=True)
-
         # Add spacing for readability, except parentheses
         if self.operator in "()":
             view.expression += self.operator
@@ -108,9 +107,7 @@ class ActionButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: CalculatorView = self.view
-        if interaction.user.id != int(view.user_id):
-            return await interaction.response.send_message("This isn't your calculator!", ephemeral=True)
-
+        
         if self.action == "clear":
             view.expression = ""
             view.used_indices.clear()
@@ -128,23 +125,22 @@ class ActionButton(discord.ui.Button):
 
                 if submission.valid:
                     if submission.distance == 0:
-                        # Perfect match - celebratory embed
+                        # Perfect match
                         embed = discord.Embed(
                             title="🎯  EXACT MATCH!",
-                            description=f"```{view.expression} = {submission.result}```",
+                            description=f"You solved it! **{submission.result}**\n```{view.expression}```",
                             color=0xF1C40F  # Gold
                         )
                     else:
                         # Good submission
                         embed = discord.Embed(
                             title="✅  Answer Submitted",
-                            description=f"```{view.expression} = {submission.result}```\n**{submission.distance}** away from target",
+                            description=f"Result: **{submission.result}** ({submission.distance} away)\n```{view.expression}```",
                             color=0x57F287  # Green
                         )
-
-                    embed.set_footer(text=f"Submitted by {interaction.user.display_name}")
-                    await interaction.channel.send(embed=embed)
-                    await interaction.response.edit_message(content="✅ **Submitted!**", view=None)
+                    
+                    # Update the private view to show success
+                    await interaction.response.edit_message(embed=embed, view=None)
 
                 else:
                     await interaction.response.send_message(f"❌ **Invalid:** {submission.error}", ephemeral=True)
@@ -157,7 +153,7 @@ class CountdownView(discord.ui.View):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.button(label="Play Now", style=discord.ButtonStyle.success, emoji="🎮")
+    @discord.ui.button(label="🎮  Play Now / Open Calculator", style=discord.ButtonStyle.success)
     async def play_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         server_id = str(interaction.guild_id)
         channel_id = str(interaction.channel_id)
@@ -167,10 +163,12 @@ class CountdownView(discord.ui.View):
             await interaction.response.send_message("Game has ended!", ephemeral=True)
             return
 
-        # Create ephemeral calculator for this user
+        # Create ephemeral unified calculator for this user
         view = CalculatorView(self.bot, game, interaction.user.id)
+        embed = self.bot._create_calculator_embed(game, "")
+        
         await interaction.response.send_message(
-            content="```fix\n \n```",
+            embed=embed,
             view=view,
             ephemeral=True
         )
@@ -1073,106 +1071,110 @@ class AIBot(commands.Bot):
         rounds = rounds or lobby.rounds
         seconds_per_round = seconds_per_round or lobby.seconds_per_round
 
-        # Settings box
-        settings_text = f"""```
-╭───────────────────────╮
-│  Rounds: {rounds:<13} │
-│  Time:   {seconds_per_round}s per round  │
-╰───────────────────────╯
-```"""
+        embed = discord.Embed(
+            title="🎮  NUMBERS GAME LOBBY",
+            description="Adjust settings below and press **Start Game** when ready.",
+            color=0x2B2D31  # Dark theme
+        )
 
-        # Ready players list
+        # Settings
+        settings_text = f"**Rounds:** `{rounds}`\n**Time:** `{seconds_per_round}s`"
+        embed.add_field(name="⚙️ Settings", value=settings_text, inline=True)
+
+        # Players
         ready_count = len(lobby.ready_players)
         if ready_count > 0:
-            ready_list = []
-            for player_id in lobby.ready_players:
-                if player_id == lobby.host_id:
-                    ready_list.append(f"✅  <@{player_id}> *(host)*")
-                else:
-                    ready_list.append(f"✅  <@{player_id}>")
-            ready_text = "\n".join(ready_list)
+            players_text = "\n".join([f"• <@{pid}>" for pid in lobby.ready_players])
         else:
-            ready_text = "*Waiting for players...*"
-
-        embed = discord.Embed(
-            title="🎮  NUMBERS GAME",
-            description="━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            color=0x5865F2  # Discord blurple
-        )
-
-        embed.add_field(
-            name="⚙️  SETTINGS",
-            value=settings_text,
-            inline=False
-        )
-
-        embed.add_field(
-            name=f"👥  PLAYERS READY ({ready_count})",
-            value=ready_text,
-            inline=False
-        )
-
-        embed.set_footer(text=f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎮 Host: {host.display_name}  •  Press Start when ready!")
+            players_text = "*Waiting for players...*"
+        
+        embed.add_field(name=f"👥 Players ({ready_count})", value=players_text, inline=True)
+        
+        embed.set_thumbnail(url="https://www.dropbox.com/scl/fi/848586887576/numbers_icon.png?rlkey=placeholder&raw=1") # Placeholder or generic icon
+        embed.set_footer(text=f"Host: {host.display_name}")
 
         return embed
 
-    def _create_countdown_embed(self, game, started_by, time_left=None) -> discord.Embed:
-        """Create the game board embed with modern design."""
-        # Use time_left if provided, otherwise calculate from game state
-        if time_left is None:
-            time_left = game.time_remaining()
+    def _create_calculator_embed(self, game, expression="") -> discord.Embed:
+        """
+        Create the PRIVATE unified game view embed.
+        Contains Target, Numbers, and Current Expression.
+        """
+        # Modern Dark Theme Color (Midnight Blue/Dark Gray)
+        color = 0x2F3136 
 
-        # Title with live indicator
-        if game.total_rounds > 1:
-            title = f"🔴 LIVE  •  Round {game.current_round}/{game.total_rounds}"
-        else:
-            title = "🔴 LIVE SESSION"
-
-        # Color based on time remaining (Discord native colors)
-        if time_left > 20:
-            color = 0x57F287  # Discord green
-        elif time_left > 10:
-            color = 0xFEE75C  # Discord yellow
-        else:
-            color = 0xED4245  # Discord red
-
-        # Timer with modern progress bar
-        progress = int((time_left / game.round_duration) * 10)
-        bar = "▰" * progress + "▱" * (10 - progress)
-        timer_display = f"⏱️ **{int(time_left)}s**  `{bar}`"
-
-        # Large target display
-        target_box = f"""```
-╔═══════════════════════════════╗
-║                               ║
-║           {game.target:^5}             ║
-║                               ║
-║        TARGET  VALUE          ║
-╚═══════════════════════════════╝
-```"""
-
-        # Numbers as tiles
-        number_tiles = "   ".join([f"` {n:^3} `" for n in game.numbers])
-
+        # Header with Target Number (Large) if possible
+        # Using a code block for the header to standout
+        target_display = f"# 🎯 {game.target}"
+        
         embed = discord.Embed(
-            title=title,
-            description=target_box,
+            description=target_display,
             color=color
         )
 
-        embed.add_field(
-            name=timer_display,
-            value="\u200b",
-            inline=False
+        # Timer & Round Info
+        time_left = game.time_remaining()
+        round_info = f"Round {game.current_round}/{game.total_rounds} • ⏱️ {int(time_left)}s"
+        embed.set_author(name=round_info, icon_url="https://cdn.discordapp.com/emojis/123456789.png") # Generic clock icon if available
+
+        # Numbers Row (Visual representation of cards)
+        # Using simple bold text with spacing
+        numbers_display = "  ".join([f"［`{n}`］" for n in game.numbers])
+        embed.add_field(name="AVAILABLE NUMBERS", value=numbers_display, inline=False)
+
+        # Current Calculation Area (The "Screen")
+        if expression:
+            # Show current expression and dynamic result if strictly valid so far (optional, maybe just show expr)
+            screen_content = f"```yaml\n{expression}\n```"
+        else:
+            screen_content = "```yaml\n \n```"  # Empty placeholder
+        
+        embed.add_field(name="CALCULATION", value=screen_content, inline=False)
+        
+        return embed
+
+    def _create_countdown_embed(self, game, started_by, time_left=None) -> discord.Embed:
+        """
+        Create the PUBLIC status board embed.
+        """
+        if time_left is None:
+            time_left = game.time_remaining()
+
+        # Title
+        title = "🔴  LIVE SESSION"
+
+        # Color based on urgency
+        if time_left > 20:
+            color = 0x57F287  # Green
+        elif time_left > 10:
+            color = 0xFEE75C  # Yellow
+        else:
+            color = 0xED4245  # Red
+
+        embed = discord.Embed(
+            title=title,
+            color=color
         )
 
-        embed.add_field(
-            name="🔢  NUMBERS",
-            value=number_tiles,
-            inline=False
-        )
+        # Target and Numbers Summary
+        summary = f"# 🎯 Target: {game.target}\n"
+        summary += f"Numbers: " + " ".join([f"`{n}`" for n in game.numbers])
+        embed.description = summary
 
-        embed.set_footer(text=f"🎮 Click 'Play Now' to solve!  •  Started by {started_by.display_name}")
+        # Timer Progress
+        progress = int((time_left / game.round_duration) * 10)
+        bar = "▰" * progress + "▱" * (10 - progress)
+        embed.add_field(name="⏳ Time Remaining", value=f"**{int(time_left)}s** `{bar}`", inline=False)
+
+        # Active Players / Status
+        # We can't easily see who is "typing" in their private view, so just show connected players from lobby or scores
+        if game.game_scores:
+            leaders = sorted(game.game_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+            leader_text = " • ".join([f"<@{uid}>: **{score}**" for uid, score in leaders])
+            if leader_text:
+                embed.add_field(name="🏆 Current Leaders", value=leader_text, inline=False)
+
+        embed.set_footer(text=f"Round {game.current_round}/{game.total_rounds} • Started by {started_by.display_name}")
 
         return embed
 
