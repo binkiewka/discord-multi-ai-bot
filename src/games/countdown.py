@@ -491,6 +491,9 @@ class CountdownGame:
         for user_id, points in round_points.items():
             game.game_scores[user_id] = game.game_scores.get(user_id, 0) + points
 
+        # Clear submissions from the previous round to prevent carrying them over
+        self._delete_submissions(server_id, channel_id)
+
         # Check if this was the final round
         if game.is_final_round():
             # End the game completely
