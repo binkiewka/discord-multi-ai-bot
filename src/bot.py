@@ -384,7 +384,9 @@ class AIBot(commands.Bot):
                  print(f"Failed to sync tree from on_ready: {e}", flush=True)
 
         # Custom sync to handle Type 4 Entry Point command
-        await self.custom_sync()
+        if not hasattr(self, '_custom_sync_ran'):
+             print("Invoking custom_sync from on_ready (fallback)...", flush=True)
+             await self.custom_sync()
 
         # Start web server for Activity API
         print("Starting web server task...", flush=True)
@@ -392,6 +394,7 @@ class AIBot(commands.Bot):
 
     async def custom_sync(self):
         """Manual sync to include Type 4 Entry Point command"""
+        self._custom_sync_ran = True
         print("Executing custom command sync...", flush=True)
         url = f"https://discord.com/api/v10/applications/{self.user.id}/commands"
         headers = {"Authorization": f"Bot {self.config.discord_token}"}
