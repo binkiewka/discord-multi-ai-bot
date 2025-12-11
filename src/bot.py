@@ -1625,7 +1625,11 @@ class AIBot(commands.Bot):
 
             # API (used by Discord Activity)
             self.app.router.add_get('/api/game/{game_id}', self.web_handle_game_api)
+            self.app.router.add_get('/game/{game_id}', self.web_handle_game_api) # Alias
+            
             self.app.router.add_post('/api/submit', self.web_handle_submit_api)
+            self.app.router.add_post('/submit', self.web_handle_submit_api) # Alias
+            
             self.app.router.add_post('/api/token', self.web_handle_token_exchange)
             self.app.router.add_post('/token', self.web_handle_token_exchange) # Alias for root access if needed
             self.app.router.add_get('/', self.web_handle_root) # Handle root for health checks
