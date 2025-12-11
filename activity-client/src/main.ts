@@ -164,12 +164,16 @@ function initializeGame(): void {
 }
 
 function showLobby(): void {
-  loadingEl.classList.remove('hidden'); // Temporarily show loading if needed, or just hide others?
-  // Actually we want to show lobby and hide loading.
   loadingEl.classList.add('hidden');
   gameContainerEl.classList.add('hidden');
   leaderboardEl.classList.add('hidden');
   lobbyEl.classList.remove('hidden');
+
+  // Reset start button state
+  if (startGameBtn) {
+    startGameBtn.disabled = false;
+    startGameBtn.textContent = 'START GAME';
+  }
 }
 
 function showLeaderboard(data: GameState): void {
@@ -333,6 +337,10 @@ async function fetchGameState(): Promise<void> {
 
       // Check for ended status
       if (data.status === 'ended') {
+        // If we are explicitly in the lobby, do not force back to leaderboard
+        if (lobbyEl && !lobbyEl.classList.contains('hidden')) {
+          return;
+        }
         showLeaderboard(data as GameState);
         return;
       }
