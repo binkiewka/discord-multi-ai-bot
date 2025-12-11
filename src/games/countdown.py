@@ -58,6 +58,7 @@ class GameState:
     channel_id: str
     started_by: str
     message_id: Optional[str] = None
+    players: List[str] = field(default_factory=list)
     # Multi-round support
     current_round: int = 1
     total_rounds: int = 1
@@ -235,7 +236,7 @@ class CountdownGame:
         ttl = (state.round_duration * state.total_rounds) + 120
         self.redis.redis.expire(key, ttl)
 
-    def get_active_game(self, server_id: str, channel_id: str, auto_advance: bool = True) -> Optional[GameState]:
+    def get_active_game(self, server_id: str, channel_id: str, auto_advance: bool = True, allow_ended: bool = False) -> Optional[GameState]:
         """
         Get the active game for a channel, if any.
 
@@ -269,11 +270,15 @@ class CountdownGame:
                 game = self.advance_round(server_id, channel_id, points)
                 return game
 
-            if game and game.status == GameStatus.ACTIVE.value:
-                return game
+            if game:
+                if game.status == GameStatus.ACTIVE.value:
+                    return game
+                if allow_ended and game.status == GameStatus.ENDED.value:
+                    return game
         return None
 
     def create_game(self, server_id: str, channel_id: str, started_by: str,
+                    players: List[str] = None,
                     total_rounds: int = 1, round_duration: int = 60) -> GameState:
         """
         Create a new game in a channel.
@@ -310,6 +315,7 @@ class CountdownGame:
             status=GameStatus.ACTIVE.value,
             channel_id=channel_id,
             started_by=started_by,
+            players=players or [started_by],
             current_round=1,
             total_rounds=total_rounds,
             round_duration=round_duration,
@@ -330,6 +336,7 @@ class CountdownGame:
             server_id=lobby.server_id,
             channel_id=lobby.channel_id,
             started_by=lobby.host_id,
+            players=lobby.ready_players,
             total_rounds=lobby.rounds,
             round_duration=lobby.seconds_per_round
         )
@@ -419,6 +426,20 @@ class CountdownGame:
 
         # Store submission
         self._save_submission(server_id, channel_id, user_id, submission)
+        
+        # Check if all players have submitted
+        # Only if we have a tracked list of players
+        if game.players:
+            submissions = self._get_all_submissions(server_id, channel_id)
+            # Count unique valid attempts (or just total submitters)
+            submitters = set(s.user_id for s in submissions)
+            
+            # If all known players have submitted
+            if len(submitters) >= len(game.players):
+                # Force round to expire immediately
+                game.end_time = time.time()
+                self._save_game(server_id, channel_id, game)
+        
         return submission
 
     def end_game(self, server_id: str, channel_id: str) -> tuple:
@@ -496,10 +517,17 @@ class CountdownGame:
 
         # Check if this was the final round
         if game.is_final_round():
-            # End the game completely
+            # End the game but keep state for leaderboard
             game.status = GameStatus.ENDED.value
-            self._delete_game(server_id, channel_id)
-            return None
+            
+            # Save with short TTL (e.g. 2 minutes) so frontend can fetch final results
+            key = self._game_key(server_id, channel_id)
+            self.redis.redis.set(key, game.to_json())
+            self.redis.redis.expire(key, 120) 
+            
+            # Clear submissions
+            self._delete_submissions(server_id, channel_id)
+            return game # Return the ended game so caller knows it exists
 
         # Advance to next round
         game.current_round += 1

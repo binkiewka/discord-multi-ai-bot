@@ -1663,7 +1663,7 @@ class AIBot(commands.Bot):
             print(f"API Request for Game ID: {server_id}_{channel_id}", flush=True)
             
             # Use the manager to get the game
-            game = self.countdown_game.get_active_game(server_id, channel_id)
+            game = self.countdown_game.get_active_game(server_id, channel_id, allow_ended=True)
             
             if not game:
                 # Return inactive status so frontend shows Lobby
