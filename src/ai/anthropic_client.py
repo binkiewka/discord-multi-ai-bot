@@ -34,8 +34,7 @@ class AnthropicClient:
                 system=system_prompt,
                 messages=messages,
                 max_tokens=2048,
-                temperature=0.7,
-                top_p=0.9
+                temperature=0.7
             )
 
             return response.content[0].text
