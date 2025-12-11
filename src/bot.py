@@ -1646,17 +1646,21 @@ class AIBot(commands.Bot):
     async def web_handle_game_api(self, request):
         """Return game state JSON."""
         from aiohttp import web
+        import urllib.parse
         game_id = request.match_info['game_id']
-        print(f"API Request for Game ID: {game_id}", flush=True)
         
         try:
-            if "_" not in game_id:
-                # Fallback for old/simple IDs - treat as Channel ID
-                # We need server ID. If we don't have it, we can't look up reliably unless we key by channel only.
-                # But our keys are 'countdown:game:SERVER:CHANNEL'.
-                return web.json_response({"error": "Invalid game ID format", "status": "inactive"}, status=200)
+            # Handle encoded characters just in case
+            game_id = urllib.parse.unquote(game_id).strip()
+            
+            if '_' in game_id:
+                server_id, channel_id = game_id.split('_', 1)
+                server_id = server_id.strip()
+                channel_id = channel_id.strip()
+            else:
+                return web.json_response({"error": "Invalid Game ID format"}, status=400)
                 
-            server_id, channel_id = game_id.split("_")
+            print(f"API Request for Game ID: {server_id}_{channel_id}", flush=True)
             
             # Use the manager to get the game
             game = self.countdown_game.get_active_game(server_id, channel_id)
@@ -1683,8 +1687,8 @@ class AIBot(commands.Bot):
         """Handle game creation from web lobby."""
         try:
             data = await request.json()
-            server_id = data.get('server_id')
-            channel_id = data.get('channel_id')
+            server_id = str(data.get('server_id', '')).strip()
+            channel_id = str(data.get('channel_id', '')).strip()
             started_by = data.get('started_by')
             rounds = int(data.get('rounds', 3))
             duration = int(data.get('duration', 60))
