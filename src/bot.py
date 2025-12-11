@@ -17,6 +17,9 @@ from games.solver import CountdownSolver
 from utils.helpers import send_chunked_message
 import io
 import aiohttp
+from aiohttp import web
+import traceback
+import json
 
 
 class CalculatorView(discord.ui.View):
