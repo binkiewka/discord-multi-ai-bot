@@ -8,6 +8,7 @@ interface GameState {
   current_round: number;
   total_rounds: number;
   status?: string;
+  game_scores?: Record<string, number>; // Add scores
 }
 
 interface SubmitResponse {
@@ -51,6 +52,8 @@ let timerInterval: number | null = null;
 // DOM Elements
 const loadingEl = document.getElementById('loading')!;
 const lobbyEl = document.getElementById('lobby-container')!;
+const leaderboardEl = document.getElementById('leaderboard-container')!; // New
+const leaderboardListEl = document.getElementById('leaderboard-list')!; // New
 const gameContainerEl = document.getElementById('game-container')!;
 const targetNumberEl = document.getElementById('target-number')!;
 const numbersContainerEl = document.getElementById('numbers-container')!;
@@ -61,6 +64,7 @@ const userDisplayEl = document.getElementById('user-display')!;
 const toastEl = document.getElementById('toast')!;
 const submitBtn = document.getElementById('btn-submit') as HTMLButtonElement;
 const startGameBtn = document.getElementById('btn-start-game') as HTMLButtonElement;
+const returnLobbyBtn = document.getElementById('btn-return-lobby') as HTMLButtonElement; // New
 
 // Lobby State
 let lobbySettings = {
@@ -162,7 +166,49 @@ function initializeGame(): void {
 function showLobby(): void {
   loadingEl.classList.add('hidden');
   gameContainerEl.classList.add('hidden');
+  leaderboardEl.classList.add('hidden');
   lobbyEl.classList.remove('hidden');
+}
+
+function showLeaderboard(data: GameState): void {
+  loadingEl.classList.add('hidden');
+  gameContainerEl.classList.add('hidden');
+  lobbyEl.classList.add('hidden');
+  leaderboardEl.classList.remove('hidden');
+
+  // Populate list
+  leaderboardListEl.innerHTML = '';
+
+  if (data.game_scores) {
+    // Sort by score desc
+    const sorted = Object.entries(data.game_scores).sort(([, a], [, b]) => b - a);
+
+    if (sorted.length === 0) {
+      leaderboardListEl.innerHTML = '<p style="text-align:center; opacity:0.5;">No points scored!</p>';
+    }
+
+    sorted.forEach(([uid, score], idx) => {
+      const row = document.createElement('div');
+      row.className = 'glass-panel';
+      row.style.padding = '12px';
+      row.style.flexDirection = 'row';
+      row.style.justifyContent = 'space-between';
+      row.style.background = 'rgba(255,255,255,0.05)';
+
+      // Just showing User ID is ugly, ideally we map to names if we knew them.
+      // But we only have authenticatedUser. The backend stores IDs.
+      // For now, check if it's us
+      let name = uid;
+      if (authenticatedUser && uid === authenticatedUser.id) {
+        name = `${authenticatedUser.username} (You)`;
+      } else {
+        name = `Player ${uid.substring(0, 4)}`; // Anonymize/Shorten slightly
+      }
+
+      row.innerHTML = `<span>#${idx + 1} ${name}</span> <span style="font-weight:bold; color:var(--primary);">${score} pts</span>`;
+      leaderboardListEl.appendChild(row);
+    });
+  }
 }
 
 function showGame(): void {
@@ -240,6 +286,7 @@ function setupEventListeners(): void {
   document.getElementById('btn-rparen')?.addEventListener('click', () => appendOp(')'));
   document.getElementById('btn-clear')?.addEventListener('click', clearCalc);
   submitBtn?.addEventListener('click', submitAnswer);
+  returnLobbyBtn?.addEventListener('click', showLobby);
 }
 
 // Fetch game state from backend
@@ -264,12 +311,24 @@ async function fetchGameState(): Promise<void> {
       const data = JSON.parse(textData);
       // Check for inactive status
       if (data.status === 'inactive') {
+        // If we are already in lobby, do nothing. If valid game ended, we might want to stay on leaderboard?
+        // But if I am in game -> inactive => someone deleted it or TTL expired.
+        if (leaderboardEl.classList.contains('hidden') === false) {
+          // We are looking at leaderboard. Don't auto-kick to lobby yet unless user clicks back.
+          return;
+        }
         showLobby();
         return;
       }
 
+      // Check for ended status
+      if (data.status === 'ended') {
+        showLeaderboard(data as GameState);
+        return;
+      }
+
       // If active game, show game UI
-      if (lobbyEl.classList.contains('hidden') === false) {
+      if (lobbyEl.classList.contains('hidden') === false || leaderboardEl.classList.contains('hidden') === false) {
         showGame();
       }
 
