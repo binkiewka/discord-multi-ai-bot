@@ -139,7 +139,7 @@ async function initializeDiscordSDK(): Promise<void> {
     const channelId = discordSdk.channelId;
 
     if (guildId && channelId) {
-      gameId = `${guildId}_${channelId} `;
+      gameId = `${guildId}_${channelId}`;
     } else {
       // Fallback for DMs or other contexts
       gameId = channelId || 'unknown';
