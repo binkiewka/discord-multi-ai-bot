@@ -1629,7 +1629,6 @@ class AIBot(commands.Bot):
             self.app.router.add_post('/api/token', self.web_handle_token_exchange)
             self.app.router.add_post('/token', self.web_handle_token_exchange) # Alias for root access if needed
             self.app.router.add_get('/', self.web_handle_root) # Handle root for health checks
-            self.app.router.add_head('/', self.web_handle_root) # Handle HEAD requests
 
             runner = web.AppRunner(self.app)
             await runner.setup()
