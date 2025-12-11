@@ -1590,12 +1590,7 @@ class CountdownView(discord.ui.View):
         
         pass
 
-    @discord.ui.button(label="🎮  Play on Dashboard", style=discord.ButtonStyle.link, url="http://localhost:10010/game") # Placeholder
-    async def dashboard_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # This callback never fires for Link buttons.
-        pass
-        
-    # We need a button that generates the link because we need the USER ID.
+
     @discord.ui.button(label="🚀  Open Web Dashboard", style=discord.ButtonStyle.blurple)
     async def open_dashboard(self, interaction: discord.Interaction, button: discord.ui.Button):
         server_id = str(interaction.guild_id)
