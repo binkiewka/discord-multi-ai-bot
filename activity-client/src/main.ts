@@ -320,6 +320,11 @@ function showError(message: string): void {
     <div class="error-container">
       <h2>Connection Error</h2>
       <p>${message}</p>
+      <div style="margin-top: 1rem; font-size: 0.8em; opacity: 0.7; text-align: left; background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 4px;">
+        <p><strong>Debug Info:</strong></p>
+        <p>Client ID detected: ${CLIENT_ID ? CLIENT_ID.substring(0, 4) + '...' : 'UNDEFINED'}</p>
+        <p>Game ID: ${gameId}</p>
+      </div>
     </div>
   `;
 }
