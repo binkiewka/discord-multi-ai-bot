@@ -399,14 +399,14 @@ class AIBot(commands.Bot):
              except Exception as e:
                  print(f"Failed to sync tree from on_ready: {e}", flush=True)
 
-        # Custom sync to handle Type 4 Entry Point command
         if not hasattr(self, '_custom_sync_ran'):
              print("Invoking custom_sync from on_ready (fallback)...", flush=True)
              await self.custom_sync()
 
-        # Start web server for Activity API
-        print("Starting web server task...", flush=True)
-        self.bg_task = asyncio.create_task(self.start_web_server())
+        # Web server is started in setup_hook. No need to start it here again.
+        if not hasattr(self, 'bg_task') or self.bg_task.done():
+              print("Ensuring web server is running from on_ready...", flush=True)
+              self.bg_task = asyncio.create_task(self.start_web_server())
 
     async def custom_sync(self):
         """Manual sync to include Type 4 Entry Point command"""
@@ -448,8 +448,7 @@ class AIBot(commands.Bot):
             await self._launch_game(interaction)
             return
 
-        # For other interactions, let the bot handle it
-        await super().on_interaction(interaction)
+        pass
 
 
     async def has_permissions(self, ctx) -> bool:
