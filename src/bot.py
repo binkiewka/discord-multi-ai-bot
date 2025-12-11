@@ -1661,7 +1661,9 @@ class AIBot(commands.Bot):
                 return web.json_response({"status": "inactive"}, status=200)
 
             # Return the game state as JSON
-            return web.json_response(text=game.to_json())
+            # Safer: Load to dict first to ensure clean JSON
+            import json
+            return web.json_response(json.loads(game.to_json()))
             
         except Exception as e:
             print(f"Error handling request: {e}", flush=True)
@@ -1694,7 +1696,8 @@ class AIBot(commands.Bot):
                     total_rounds=rounds,
                     round_duration=duration
                 )
-                return web.json_response(text=game.to_json())
+                import json
+                return web.json_response(json.loads(game.to_json()))
             except ValueError as e:
                 # If game exists, return it? Or error?
                 # If it exists, they should join it.
