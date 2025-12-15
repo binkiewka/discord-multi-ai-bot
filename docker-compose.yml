@@ -2,8 +2,7 @@ services:
   bot:
     build: .
     container_name: ai_bot
-    ports:
-      - "10010:10010"
+
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -21,21 +20,10 @@ services:
       - ./src:/app/src
     restart: unless-stopped
 
-  activity-client:
-    build:
-      context: ./activity-client
-      args:
-        - VITE_DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
-    container_name: activity_client
-    ports:
-      - "10011:80"
-    restart: unless-stopped
-
   redis:
     image: redis:alpine
     container_name: ai_redis
-    ports:
-      - "6379:6379"
+
     volumes:
       - redis_data:/data
     restart: unless-stopped

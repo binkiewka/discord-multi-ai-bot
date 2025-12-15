@@ -36,3 +36,9 @@ wheels/
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Virtual environment
+.venv/
+
+# Test files
+reproduce_recursion.py

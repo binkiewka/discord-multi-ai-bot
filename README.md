@@ -5,6 +5,7 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
 ## Features
 
 ### AI Integration
+
 - **Multiple AI Providers**
   - Anthropic Claude
   - OpenAI GPT-4
@@ -15,23 +16,21 @@ A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, 
   - `!recraft` - Advanced image generation using ReCraft v3
   - Support for detailed image prompts
   - Automatic image delivery in Discord
-- **Games**
-  - Countdown Numbers Game - Classic TV show-style math puzzle game
-  - **Discord Activity** - Play directly inside Discord voice channels with a modern UI
-  - Competitive multiplayer rounds with configurable time limits
-  - Secure expression parser (no code injection)
+
 - **Channel-Specific Configuration** - Set different AI models and roles per channel (admin only)
 - **Seamless Model Switching** - Switch between AI models with automatic fallback to server-wide defaults
 - **Context Memory** - Maintains conversation history using Redis
 - **Multi-User Support** - Multiple users can participate in the same conversation thread
 
 ### Role-Based System
+
 - **Channel-Specific Roles** - Each channel can have its own AI personality (admin controlled)
 - **Flexible Fallback System** - Channel-specific → Server-wide → Default role
 - Predefined roles with unique personalities and behaviors
 - Easy to add new roles via YAML configuration
 
 Available Roles:
+
 - **Core Assistants**
   - Default Assistant - A helpful AI assistant
   - Concise Assistant - Direct and brief responses
@@ -57,6 +56,7 @@ Available Roles:
   - Domain Generator - Creative short domain name creation
 
 ### Server Management
+
 - **Multi-Channel Support** - Bot can respond in multiple designated channels per server
 - **Channel-Specific Configuration** - Each channel can have unique AI model and role settings
 - **Per-Server Configuration** - Server-wide settings act as fallback for channels without specific configuration
@@ -66,6 +66,7 @@ Available Roles:
 ## Setup
 
 ### Prerequisites
+
 - Docker and Docker Compose
 - Discord Bot Token
 - AI Provider API Keys:
@@ -75,13 +76,16 @@ Available Roles:
   - Replicate API Token
 
 ### Installation
+
 1. **Clone the repository**
+
 ```bash
 git clone https://github.com/binkiewka/discord-multi-ai-bot
 cd discord-multi-ai-bot
 ```
 
 2. **Configure Environment**
+
 ```bash
 # Copy example environment file
 cp .env_example .env
@@ -91,6 +95,7 @@ nano .env  # or use any text editor
 ```
 
 Required environment variables:
+
 ```env
 DISCORD_TOKEN=your_discord_token
 DISCORD_CLIENT_ID=your_application_client_id
@@ -103,6 +108,7 @@ OWNER_ID=your_discord_id
 ```
 
 3. **Discord Bot Setup**
+
 - Go to [Discord Developer Portal](https://discord.com/developers/applications/)
 - Create a new application
 - Add a bot to your application
@@ -113,11 +119,13 @@ OWNER_ID=your_discord_id
 - Copy the bot token to your `.env` file
 
 4. **Start the Bot**
+
 ```bash
 docker-compose up --build
 ```
 
 5. **Invite Bot to Server**
+
 - Generate OAuth2 URL with required permissions:
   - Read Messages/View Channels
   - Send Messages
@@ -127,40 +135,10 @@ docker-compose up --build
   - Add Reactions
   - Attach Files (for image generation)
 
-6. **Discord Activity Setup (Required for Numbers Game)**
-
-The Numbers Game runs as a Discord Activity embedded inside voice channels.
-
-**Discord Developer Portal Configuration:**
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications/)
-2. Select your bot application
-3. Copy **Client ID** from OAuth2 section → Add to `.env` as `DISCORD_CLIENT_ID`
-4. Generate **Client Secret** (OAuth2 > General) → Add to `.env` as `DISCORD_CLIENT_SECRET`
-5. Enable **Activities** (Activities section in sidebar) → Toggle ON
-6. Configure **URL Mappings** (Activities > URL Mappings):
-   ```
-   Prefix: /api
-   Target: your-api-domain.com (pointing to port 10010)
-   ```
-7. Set **Activity URL** to your Activity frontend domain (pointing to port 10011)
-
-**Caddy/Nginx Setup:**
-Set up reverse proxies for both services:
-```
-# Activity Frontend (port 10011)
-activity.yourdomain.com {
-    reverse_proxy localhost:10011
-}
-
-# Bot API (port 10010)
-api.yourdomain.com {
-    reverse_proxy localhost:10010
-}
-```
-
 ## Usage
 
 ### Public Commands
+
 - `!listroles` - Display available personality roles
 - `!listmodels` - Show available AI models
 - `!channelconfig` - Show current channel's AI configuration (role and model)
@@ -169,31 +147,10 @@ api.yourdomain.com {
 - `!fluxpro <prompt>` - Generate high-quality image using Flux Pro
 - `!recraft <prompt>` - Generate image using ReCraft v3
 
-### Game Commands
-- `!countdown` / `!numbers` - Start a new Countdown Numbers Game
-
-**Countdown Numbers Game:**
-A classic TV show-style math puzzle that runs as a **Discord Activity** inside voice channels.
-
-**How to Play:**
-1. Use `!countdown` or `!numbers` to start a game lobby
-2. Configure rounds (1-5) and time per round (30/60/120 seconds)
-3. Players click "Ready" to join
-4. Host clicks "Start Game"
-5. **Join a voice channel** and click "Play in Discord" to launch the Activity
-6. Build mathematical expressions using the available numbers to reach the target
-7. Submit your answer before time runs out!
-
-**Game Rules:**
-- Target number: 100-999
-- 6 numbers available (2 large: 25/50/75/100, 4 small: 1-10)
-- Use `+`, `-`, `×`, `÷` and parentheses
-- Each number can only be used once
-- Closest to target wins! (Exact match = 10 points, within 10 = 5 points, within 25 = 2 points)
-
 ### Admin Commands
 
 #### Channel Management
+
 - `!addchan` - Add current channel to allowed channels
 - `!addchan <#channel>` - Add specified channel to allowed channels
 - `!mute` - Remove current channel from allowed channels
@@ -202,6 +159,7 @@ A classic TV show-style math puzzle that runs as a **Discord Activity** inside v
 - `!clearchans` - Remove all allowed channels
 
 #### AI Configuration (Channel-Specific)
+
 - `!setrole <role>` - Set AI personality for current channel
 - `!setrole <role> <#channel>` - Set AI personality for specific channel
 - `!setmodel <model>` - Set AI model for current channel (claude/gpt4/gemini)
@@ -210,6 +168,7 @@ A classic TV show-style math puzzle that runs as a **Discord Activity** inside v
 - `!clearchannelconfig <#channel>` - Clear channel-specific settings for specific channel
 
 #### Server-Wide Defaults
+
 - `!setdefaultrole <role>` - Set server-wide default AI personality (fallback for channels without specific settings)
 - `!setdefaultmodel <model>` - Set server-wide default AI model (fallback for channels without specific settings)
 - `!status` - Display server defaults and all channel-specific configurations
@@ -219,11 +178,13 @@ A classic TV show-style math puzzle that runs as a **Discord Activity** inside v
 **Permissions:** All admin commands require Administrator or Moderator permissions (or bot owner).
 
 ### Owner Commands
+
 - `!shutdown` - Shutdown the bot
 - `!listservers` - List all servers the bot is in
 - `!leaveserver <server_id>` - Leave a specific server
 
 ### Interaction
+
 - The bot responds to mentions (@BotName)
 - Maintains conversation context for 30 messages
 - Context expires after 2 hours of inactivity
@@ -231,6 +192,7 @@ A classic TV show-style math puzzle that runs as a **Discord Activity** inside v
 ## Technical Details
 
 ### Architecture
+
 ```
 discord-ai-bot/
 ├── src/
@@ -243,29 +205,16 @@ discord-ai-bot/
 │   │   ├── fluxpro_client.py
 │   │   └── recraft_client.py
 │   ├── assets/
-│   │   └── countdown_banner.jpg
 │   ├── config/
 │   │   ├── roles.yaml
 │   │   └── config.py
 │   ├── db/
 │   │   └── redis_client.py
-│   ├── games/
-│   │   ├── __init__.py
-│   │   ├── countdown.py
-│   │   ├── expression_parser.py
-│   │   └── solver.py
 │   ├── utils/
 │   │   └── helpers.py
 │   ├── bot.py
 │   └── main.py
-├── activity-client/          # Discord Activity Frontend
-│   ├── src/
-│   │   ├── main.ts           # Discord SDK integration
-│   │   └── style.css         # Modern dark theme UI
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── Dockerfile
+
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -273,6 +222,7 @@ discord-ai-bot/
 ```
 
 ### AI Configuration
+
 - Message context: Last 10 messages per conversation
 - Max tokens: 2048
 - Temperature: 0.7
@@ -281,6 +231,7 @@ discord-ai-bot/
 - Image generation via Replicate API
 
 ### Redis Configuration
+
 - Context expiry: 2 hours
 - Max context messages: 30
 - Per-server and per-channel settings storage
@@ -290,6 +241,7 @@ discord-ai-bot/
 ## Security
 
 ### Permission Levels
+
 - **Public Access**
   - Image generation
   - Basic informational commands
@@ -307,11 +259,13 @@ discord-ai-bot/
   - Shutdown command
 
 ### Rate Limiting
+
 - Built-in Discord API rate limiting
 - Provider-specific API rate limits apply
 - Image generation throttling
 
 ### Data Handling
+
 - Temporary context storage in Redis
 - No permanent message storage
 - Automatic context cleanup
@@ -320,6 +274,7 @@ discord-ai-bot/
 ## Troubleshooting
 
 ### Common Issues
+
 1. **Bot Not Responding**
    - Check if bot has correct channel permissions
    - Verify channel is added with `!addchan` (use `!listchans` to see allowed channels)
@@ -336,18 +291,23 @@ discord-ai-bot/
    - Monitor API quotas
 
 ### Logging
+
 - Error logs are printed to console
 - Debug command for Redis inspection
 - Use Docker logs for debugging:
+
   ```bash
   docker-compose logs -f ai_bot
   ```
 
 ## Support
+
 For issues and feature requests, please open an issue in the repository.
 
 ## License
+
 GPL-3.0 license
 
 ## Contributing
+
 Contributions are welcome! Please feel free to submit a Pull Request.
