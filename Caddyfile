@@ -1,8 +1,0 @@
-# Caddyfile Example
-# Replace 'your-game-domain.com' with your actual domain.
-# Ensure your DNS records point to this server.
-
-your-game-domain.com {
-    # Reverse proxy all traffic to the bot container on port 10010
-    reverse_proxy localhost:10010
-}
