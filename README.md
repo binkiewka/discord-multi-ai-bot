@@ -1,15 +1,15 @@
 # Discord Multi-AI Bot
 
-A versatile Discord bot that leverages multiple AI providers (Anthropic Claude, OpenAI GPT-4, and Google Gemini) with advanced context memory, role-based interactions, and image generation capabilities.
+A versatile Discord bot that leverages multiple AI providers (Anthropic Claude Haiku 4.5, OpenAI GPT-4.1 Mini, and Google Gemini 3.1 Flash-Lite) with advanced context memory, role-based interactions, and image generation capabilities.
 
 ## Features
 
 ### AI Integration
 
 - **Multiple AI Providers**
-  - Anthropic Claude
-  - OpenAI GPT-4
-  - Google Gemini
+  - Anthropic Claude Haiku 4.5
+  - OpenAI GPT-4.1 Mini
+  - Google Gemini 3.1 Flash-Lite Preview
 - **Image Generation**
   - `!flux` - Fast image generation using Flux Schnell model
   - `!fluxpro` - High-quality image generation using Flux Pro model
@@ -132,7 +132,6 @@ docker-compose up --build
   - Read Message History
   - Use External Emojis
   - Add Reactions
-  - Add Reactions
   - Attach Files (for image generation)
 
 ## Usage
@@ -162,7 +161,7 @@ docker-compose up --build
 
 - `!setrole <role>` - Set AI personality for current channel
 - `!setrole <role> <#channel>` - Set AI personality for specific channel
-- `!setmodel <model>` - Set AI model for current channel (claude/gpt4/gemini)
+- `!setmodel <model>` - Set AI model for current channel (`claude` / `gpt4mini` / `gemini`)
 - `!setmodel <model> <#channel>` - Set AI model for specific channel
 - `!clearchannelconfig` - Clear channel-specific settings for current channel (reverts to server-wide)
 - `!clearchannelconfig <#channel>` - Clear channel-specific settings for specific channel
@@ -172,6 +171,13 @@ docker-compose up --build
 - `!setdefaultrole <role>` - Set server-wide default AI personality (fallback for channels without specific settings)
 - `!setdefaultmodel <model>` - Set server-wide default AI model (fallback for channels without specific settings)
 - `!status` - Display server defaults and all channel-specific configurations
+
+**Available models:**
+| Key | Model | Provider |
+|-----|-------|----------|
+| `claude` | Claude Haiku 4.5 | Anthropic |
+| `gpt4mini` | GPT-4.1 Mini | OpenAI |
+| `gemini` | Gemini 3.1 Flash-Lite Preview | Google |
 
 **Note:** Channel-specific settings take priority over server-wide defaults. If no channel-specific setting exists, the bot falls back to server-wide defaults, then to hardcoded defaults.
 
@@ -197,9 +203,9 @@ docker-compose up --build
 discord-ai-bot/
 ├── src/
 │   ├── ai/
-│   │   ├── anthropic_client.py
-│   │   ├── openai_client.py
-│   │   ├── google_client.py
+│   │   ├── anthropic_client.py   # Claude Haiku 4.5
+│   │   ├── openai_client.py      # GPT-4.1 Mini
+│   │   ├── google_client.py      # Gemini 3.1 Flash-Lite Preview
 │   │   ├── base_image_client.py
 │   │   ├── flux_client.py
 │   │   ├── fluxpro_client.py
@@ -221,12 +227,19 @@ discord-ai-bot/
 └── README.md
 ```
 
+### AI Models
+
+| Key | Model | Provider | Notes |
+|-----|-------|----------|-------|
+| `claude` | claude-haiku-4-5 | Anthropic | Fast, efficient, great for chat |
+| `gpt4mini` | gpt-4.1-mini | OpenAI | Smart, cost-effective |
+| `gemini` | gemini-3.1-flash-lite-preview | Google | Lightweight, low latency |
+
 ### AI Configuration
 
 - Message context: Last 10 messages per conversation
 - Max tokens: 2048
 - Temperature: 0.7
-- Top P: 0.9
 - Response timeout: 120 seconds
 - Image generation via Replicate API
 

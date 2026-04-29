@@ -5,46 +5,41 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ReCraftClient(BaseImageClient):
     def __init__(self, api_key: str):
         super().__init__(api_key)
         self.model = "recraft-ai/recraft-v3"
         self.model_params = {
-            "prompt": "",  # Will be set during generation
+            "prompt": "",
             "size": "1365x1024",
-            "style": "any"
+            "style": "any",
         }
         self.max_prompt_length = 1000
 
     async def generate_image(self, prompt: str) -> Optional[bytes]:
-        """
-        Generate an image using the ReCraft model via Replicate API.
-        """
         if len(prompt) > self.max_prompt_length:
-            logger.warning("Truncating prompt from %d to %d characters", len(prompt), self.max_prompt_length)
-            prompt = prompt[:self.max_prompt_length]
+            logger.warning(
+                "Truncating prompt from %d to %d characters",
+                len(prompt),
+                self.max_prompt_length,
+            )
+            prompt = prompt[: self.max_prompt_length]
 
         self.model_params["prompt"] = prompt
-        
+
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             output = await loop.run_in_executor(
                 None,
-                lambda: self.client.run(
-                    self.model,
-                    input=self.model_params
-                )
+                lambda: self.client.run(self.model, input=self.model_params),
             )
-            
+
             if output:
-                # Handle file-like object directly
-                image_data = await loop.run_in_executor(
-                    None,
-                    lambda: output.read()
-                )
+                image_data = await loop.run_in_executor(None, lambda: output.read())
                 return image_data
             return None
-            
+
         except Exception as e:
             print(f"ReCraft generation error: {str(e)}")
             raise
